@@ -78,11 +78,23 @@ function findStatus(node: unknown): { status: number; mensaje: string } | null {
  * Devuelve [] si el BCU responde sin datos (ej. un rango de solo feriados).
  */
 export async function fetchCotizaciones(codes: number[], from: string, to: string): Promise<BcuRate[]> {
-  const res = await fetch(ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/xml; charset=utf-8', SOAPAction: '' },
-    body: buildEnvelope(codes, from, to),
-  });
+  // El BCU a veces tarda en aceptar la conexión más que el timeout de Node
+  // (visto desde GitHub Actions): reintentos con espera creciente.
+  let res: Response | undefined;
+  for (let intento = 1; ; intento++) {
+    try {
+      res = await fetch(ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/xml; charset=utf-8', SOAPAction: '' },
+        body: buildEnvelope(codes, from, to),
+      });
+      break;
+    } catch (e) {
+      if (intento >= 3) throw e;
+      console.warn(`  ⚠ BCU no respondió (intento ${intento}): ${e instanceof Error ? e.message : e}`);
+      await new Promise((r) => setTimeout(r, intento * 10_000));
+    }
+  }
   if (!res.ok) throw new Error(`BCU respondió HTTP ${res.status}`);
 
   const text = await res.text();
