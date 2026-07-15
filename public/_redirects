@@ -1,0 +1,4 @@
+# Cloudflare Pages: /compras/{id} sirve la página única de detalle (rewrite
+# 200, la URL no cambia); el id se lee del path en el cliente. El listado
+# /compras no matchea (la regla exige un segmento más, no vacío).
+/compras/:id /compras/detalle/ 200

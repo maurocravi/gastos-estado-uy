@@ -35,14 +35,9 @@ export interface Adjudicacion {
   items: number;
 }
 
-/**
- * id de entidad → segmento de URL. Los ids locales (RUT / "n-n") ya son
- * URL-safe; los proveedores extranjeros traen espacios, barras o ":" (21
- * casos) y se colapsan a "~". La unicidad se verifica en cargarEntidades.
- */
-export function slugEntidad(id: string): string {
-  return id.replace(/[^A-Za-z0-9_.-]+/g, '~');
-}
+import { slugEntidad } from './slug.js';
+
+export { slugEntidad };
 
 /** Trae una vista completa paginando (PostgREST corta en 1000 filas). */
 async function fetchTodo<T>(vista: string, orden: string): Promise<T[]> {

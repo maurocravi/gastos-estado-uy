@@ -18,11 +18,21 @@ Hoy el flujo es manual en dos capas:
 
 Plan propuesto:
 
-- [ ] Inicializar repo git y subir a GitHub.
-- [ ] Elegir hosting estático (Netlify / Vercel / Cloudflare Pages).
+- [x] Inicializar repo git y subir a GitHub (2026-07-14):
+      https://github.com/maurocravi/gastos-estado-uy
+- [x] Hosting estático (2026-07-14): Cloudflare Pages, deploy por CLI
+      (`npx wrangler pages deploy dist --project-name gastos-estado-uy --branch main`).
+      Sitio: https://gastos-estado-uy.pages.dev. Pages limita a 20.000 archivos
+      por deploy → el detalle de compra dejó de ser estático (eran 42k páginas):
+      ahora es una página única (`/compras/detalle`) que carga los datos por JS
+      desde PostgREST con la publishable key; `public/_redirects` reescribe
+      `/compras/{id}` hacia ella (rewrite 200, la URL no cambia). El build quedó
+      en ~6.300 páginas / ~1m15s y escala a toda la historia.
 - [ ] GitHub Action con cron diario: ingest + rates + normalize del mes en curso,
       después build + deploy. Secrets: `SUPABASE_URL`, service key (solo para el
-      paso de datos), publishable key (para el build).
+      paso de datos), publishable key (para el build), `CLOUDFLARE_API_TOKEN` +
+      `CLOUDFLARE_ACCOUNT_ID` (deploy). OJO: Supabase free se pausa tras ~7 días
+      sin actividad (pasó el 2026-07-14); el cron diario también evita eso.
 - [ ] Alerta si el job falla (el feed de ARCE a veces devuelve 404 en releases
       listados en su propio RSS; el ingest ya lo tolera).
 

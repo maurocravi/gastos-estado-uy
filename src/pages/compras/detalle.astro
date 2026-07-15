@@ -1,0 +1,251 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+// Página única para el detalle de compra: los datos se cargan en el cliente
+// desde PostgREST (42k compras como páginas estáticas superan el límite de
+// 20k archivos por deploy de Cloudflare Pages). Las URLs /compras/{id} llegan
+// acá vía public/_redirects (rewrite 200). La publishable key es pública por
+// diseño: solo lectura vía RLS.
+const supabaseUrl = import.meta.env.SUPABASE_URL as string;
+const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
+---
+
+<Layout title="Detalle de compra">
+  <div
+    id="detalle"
+    class="col-span-12 grid grid-cols-12 gap-6"
+    data-supabase-url={supabaseUrl}
+    data-supabase-key={supabaseKey}
+  >
+    <div class="col-span-12">
+      <a href="/compras" class="text-sm font-medium text-primary hover:underline">← Compras</a>
+      <p class="mt-2 text-sm text-ink-soft">Cargando compra…</p>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  import { int, uyu, cant, moneda, fecha, titulo } from '../../lib/format.js';
+  import { estadoCompra, estadoAdjudicacion } from '../../lib/estados.js';
+  import { slugEntidad } from '../../lib/slug.js';
+
+  interface Item {
+    description: string | null;
+    classification_id: string | null;
+    classification_desc: string | null;
+    quantity: number | null;
+    unit_name: string | null;
+    amount: number | null;
+    currency: string | null;
+    amount_uyu: number | null;
+  }
+  interface Adjudicacion {
+    award_id: string;
+    status: string | null;
+    award_date: string | null;
+    notice_url: string | null;
+    supplier: { id: string; name: string } | null;
+    items: Item[];
+  }
+  interface Compra {
+    ocid: string;
+    id_compra: number;
+    tender_title: string | null;
+    status: string | null;
+    first_seen: string;
+    last_updated: string;
+    buyer: { id: string; name: string } | null;
+    awards: Adjudicacion[];
+  }
+
+  const cont = document.getElementById('detalle')!;
+
+  const esc = (s: string) =>
+    s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+  /** /compras/{id} (rewrite de Cloudflare) o ?id= (dev local, sin rewrites). */
+  function idCompra(): string | null {
+    const m = location.pathname.match(/\/compras\/([^/]+)\/?$/);
+    const id =
+      m && m[1] !== 'detalle'
+        ? decodeURIComponent(m[1])
+        : new URLSearchParams(location.search).get('id');
+    return id && /^\d+$/.test(id) ? id : null;
+  }
+
+  function mensaje(texto: string) {
+    cont.innerHTML = `
+      <div class="col-span-12">
+        <a href="/compras" class="text-sm font-medium text-primary hover:underline">← Compras</a>
+        <p class="mt-2 text-sm text-ink-soft">${esc(texto)}</p>
+      </div>`;
+  }
+
+  const kpi = (label: string, value: string, sub: string) => `
+    <div class="rounded-lg border border-line bg-surface px-6 py-5 col-span-12 sm:col-span-4">
+      <p class="text-xs font-medium tracking-wide text-ink-soft uppercase">${esc(label)}</p>
+      <p class="num mt-2 text-2xl font-medium text-ink">${esc(value)}</p>
+      <p class="mt-1 text-xs text-ink-faint">${esc(sub)}</p>
+    </div>`;
+
+  const card = (title: string, sub: string | null, cuerpo: string) => `
+    <section class="rounded-lg border border-line bg-surface p-6 col-span-12">
+      <header class="mb-5">
+        <h2 class="text-sm font-semibold text-ink">${esc(title)}</h2>
+        ${sub ? `<p class="mt-0.5 text-xs text-ink-faint">${esc(sub)}</p>` : ''}
+      </header>
+      ${cuerpo}
+    </section>`;
+
+  function render(compra: Compra) {
+    const adjudicaciones = [...compra.awards].sort((a, b) =>
+      (a.award_date ?? '9999').localeCompare(b.award_date ?? '9999'),
+    );
+
+    const totalItem = (i: Item) =>
+      i.amount_uyu == null ? null : i.amount_uyu * (i.quantity ?? 1);
+    const totalAdj = (a: Adjudicacion) =>
+      a.items.reduce((s, i) => s + (totalItem(i) ?? 0), 0);
+    const totalCompra = adjudicaciones.reduce((s, a) => s + totalAdj(a), 0);
+    const nItems = adjudicaciones.reduce((s, a) => s + a.items.length, 0);
+
+    // Objeto de la compra: el feed solo trae tender.title en los llamados;
+    // si falta, usamos el ítem adjudicado de mayor monto como proxy.
+    const itemPrincipal = adjudicaciones
+      .flatMap((a) => a.items)
+      .sort((x, y) => (totalItem(y) ?? -1) - (totalItem(x) ?? -1))
+      .map((i) => i.description ?? i.classification_desc)
+      .find((d) => d != null);
+    const objeto = compra.tender_title ?? itemPrincipal ?? null;
+
+    const urlArce = `https://www.comprasestatales.gub.uy/consultas/detalle/mostrar-llamado/1/id/${compra.id_compra}`;
+
+    document.title = `Compra ${compra.id_compra} · Compras del Estado`;
+
+    const linkBuyer = compra.buyer
+      ? `<a href="/organismos/${esc(slugEntidad(compra.buyer.id))}" class="hover:underline">${esc(compra.buyer.name)}</a>`
+      : 'organismo sin identificar';
+
+    const filaFicha = (dt: string, dd: string) => `
+      <div class="flex justify-between gap-4 border-b border-line pb-2">
+        <dt class="text-ink-faint">${dt}</dt>
+        <dd class="num text-right">${dd}</dd>
+      </div>`;
+
+    const cardsAdj = adjudicaciones.length
+      ? adjudicaciones
+          .map((a) => {
+            const filas = a.items
+              .map(
+                (i) => `
+              <tr class="border-b border-line last:border-b-0">
+                <td class="max-w-[24rem] truncate py-2.5 pr-4" title="${esc(i.description ?? '')}">${esc(titulo(i.description, 70))}</td>
+                <td class="max-w-[16rem] truncate py-2.5 pr-4 text-ink-soft" title="${esc(i.classification_desc ?? '')}">${esc(i.classification_desc ?? i.classification_id ?? '—')}</td>
+                <td class="num py-2.5 pr-4 text-right text-ink-soft">${esc(cant(i.quantity))}</td>
+                <td class="py-2.5 pr-4 text-ink-soft">${esc(i.unit_name ?? '—')}</td>
+                <td class="num py-2.5 pr-4 text-right whitespace-nowrap text-ink-soft">${esc(moneda(i.amount, i.currency))}</td>
+                <td class="num py-2.5 text-right whitespace-nowrap">${esc(uyu(totalItem(i)))}</td>
+              </tr>`,
+              )
+              .join('');
+
+            const links = [
+              a.supplier
+                ? `<a href="/proveedores/${esc(slugEntidad(a.supplier.id))}" class="font-medium text-primary hover:underline">Ficha del proveedor →</a>`
+                : '',
+              a.notice_url
+                ? `<a href="${esc(a.notice_url)}" rel="noopener" target="_blank" class="font-medium text-primary hover:underline">Acta de adjudicación (PDF) →</a>`
+                : '',
+            ]
+              .filter(Boolean)
+              .join('');
+
+            return card(
+              `Adjudicación · ${a.supplier?.name ?? 'proveedor sin identificar'}`,
+              `${fecha(a.award_date)} · ${estadoAdjudicacion(a.status)} · ${int(a.items.length)} ítems`,
+              `
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="border-b border-line text-left text-xs text-ink-faint">
+                      <th class="py-2 pr-4 font-medium">Ítem</th>
+                      <th class="py-2 pr-4 font-medium">Clasificación</th>
+                      <th class="py-2 pr-4 text-right font-medium">Cant.</th>
+                      <th class="py-2 pr-4 font-medium">Unidad</th>
+                      <th class="py-2 pr-4 text-right font-medium">Precio unit.</th>
+                      <th class="py-2 text-right font-medium">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>${filas}</tbody>
+                  <tfoot>
+                    <tr class="border-t border-line text-xs">
+                      <td colspan="5" class="py-2.5 pr-4 text-right font-medium text-ink-faint">Total adjudicación</td>
+                      <td class="num py-2.5 text-right font-medium whitespace-nowrap">${esc(uyu(totalAdj(a)))}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              ${links ? `<p class="mt-4 flex flex-wrap justify-end gap-x-6 text-sm">${links}</p>` : ''}`,
+            );
+          })
+          .join('')
+      : card(
+          'Adjudicaciones',
+          null,
+          '<p class="text-sm text-ink-soft">Esta compra todavía no tiene adjudicaciones registradas en el feed OCDS.</p>',
+        );
+
+    cont.innerHTML = `
+      <div class="col-span-12">
+        <a href="/compras" class="text-sm font-medium text-primary hover:underline">← Compras</a>
+        <h1 class="mt-2 text-xl font-semibold tracking-tight">${esc(titulo(objeto, 140))}</h1>
+        <p class="mt-1 text-sm text-ink-soft">compra ${compra.id_compra} · ${linkBuyer}</p>
+      </div>
+      ${kpi('Adjudicado', uyu(adjudicaciones.length ? totalCompra : null), 'pesos uruguayos, montos normalizados')}
+      ${kpi('Adjudicaciones', int(adjudicaciones.length), `${int(nItems)} ítems`)}
+      ${kpi('Estado', estadoCompra(compra.status), `actualizada el ${fecha(compra.last_updated)}`)}
+      ${card(
+        'Ficha',
+        'identificadores y fuente del proceso',
+        `<dl class="grid grid-cols-1 gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
+          ${filaFicha('Organismo', compra.buyer ? `<a href="/organismos/${esc(slugEntidad(compra.buyer.id))}" class="font-medium text-primary hover:underline">${esc(compra.buyer.name)}</a>` : '—')}
+          ${filaFicha('ocid', `<span class="text-ink-soft">${esc(compra.ocid)}</span>`)}
+          ${filaFicha('Primera vez vista', esc(fecha(compra.first_seen)))}
+          ${filaFicha('Última actualización', esc(fecha(compra.last_updated)))}
+        </dl>
+        <p class="mt-4 text-sm">
+          <a href="${esc(urlArce)}" rel="noopener" target="_blank" class="font-medium text-primary hover:underline">Ver en comprasestatales.gub.uy →</a>
+        </p>`,
+      )}
+      ${cardsAdj}`;
+  }
+
+  async function cargar() {
+    const id = idCompra();
+    if (!id) {
+      mensaje('Falta el identificador de la compra en la URL.');
+      return;
+    }
+
+    const { supabaseUrl, supabaseKey } = cont.dataset;
+    const select = `ocid,id_compra,tender_title,status,first_seen,last_updated,buyer:entities!purchases_buyer_id_fkey(id,name),awards(award_id,status,award_date,notice_url,supplier:entities!awards_supplier_id_fkey(id,name),items:award_items(description,classification_id,classification_desc,quantity,unit_name,amount,currency,amount_uyu))`;
+    const params = new URLSearchParams({ select, id_compra: `eq.${id}` });
+
+    try {
+      const res = await fetch(`${supabaseUrl}/rest/v1/purchases?${params}`, {
+        headers: { apikey: supabaseKey! },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const compras = (await res.json()) as Compra[];
+      if (!compras.length) {
+        mensaje(`No encontramos la compra ${id}. Puede que sea anterior a los datos cargados (2026).`);
+        return;
+      }
+      render(compras[0]);
+    } catch (e) {
+      mensaje(`No pudimos cargar la compra (${e instanceof Error ? e.message : e}). Probá recargar la página.`);
+    }
+  }
+
+  cargar();
+</script>
