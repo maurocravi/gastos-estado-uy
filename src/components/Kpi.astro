@@ -1,0 +1,15 @@
+---
+interface Props {
+  label: string;
+  value: string;
+  sub?: string;
+  class?: string;
+}
+const { label, value, sub, class: cls = 'col-span-12 sm:col-span-6 xl:col-span-3' } = Astro.props;
+---
+
+<div class:list={['rounded-lg border border-line bg-surface px-6 py-5', cls]}>
+  <p class="text-xs font-medium tracking-wide text-ink-soft uppercase">{label}</p>
+  <p class="num mt-2 text-2xl font-medium text-ink">{value}</p>
+  {sub && <p class="mt-1 text-xs text-ink-faint">{sub}</p>}
+</div>

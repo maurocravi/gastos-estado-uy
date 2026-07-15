@@ -1,0 +1,89 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Card from '../components/Card.astro';
+import { supabase, unwrap } from '../lib/supabase.js';
+import { int, uyu, fecha, titulo } from '../lib/format.js';
+import { estadoCompra } from '../lib/estados.js';
+
+interface Row {
+  ocid: string;
+  id_compra: number | null;
+  tender_title: string | null;
+  status: string | null;
+  last_updated: string | null;
+  organismo: string | null;
+  adjudicaciones: number;
+  total_uyu: number | null;
+  item_principal: string | null;
+}
+
+const rows = unwrap<Row[]>(
+  await supabase
+    .from('dash_compras')
+    .select('*')
+    .order('total_uyu', { ascending: false, nullsFirst: false })
+    .limit(100),
+  'dash_compras',
+);
+---
+
+<Layout title="Compras">
+  <div class="col-span-12">
+    <h1 class="text-xl font-semibold tracking-tight">Compras</h1>
+    <p class="mt-1 text-sm text-ink-soft">las 100 más grandes por monto adjudicado</p>
+  </div>
+
+  <Card title="Compras por monto" sub="proceso completo por ocid; total normalizado a pesos">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-line text-left text-xs text-ink-faint">
+            <th class="py-2 pr-4 font-medium">Compra</th>
+            <th class="py-2 pr-4 font-medium">Objeto</th>
+            <th class="py-2 pr-4 font-medium">Organismo</th>
+            <th class="py-2 pr-4 font-medium">Estado</th>
+            <th class="py-2 pr-4 text-right font-medium">Adj.</th>
+            <th class="py-2 pr-4 text-right font-medium">Total</th>
+            <th class="py-2 font-medium">Actualizada</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            rows.map((c) => (
+              <tr class="border-b border-line last:border-b-0">
+                <td class="num py-2.5 pr-4 whitespace-nowrap">
+                  {c.id_compra != null ? (
+                    <a href={`/compras/${c.id_compra}`} class="font-medium text-primary hover:underline">
+                      {c.id_compra}
+                    </a>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+                <td
+                  class="max-w-[24rem] truncate py-2.5 pr-4"
+                  title={c.tender_title ?? c.item_principal ?? undefined}
+                >
+                  {c.id_compra != null ? (
+                    <a href={`/compras/${c.id_compra}`} class="hover:underline">
+                      {titulo(c.tender_title ?? c.item_principal, 70)}
+                    </a>
+                  ) : (
+                    titulo(c.tender_title ?? c.item_principal, 70)
+                  )}
+                </td>
+                <td class="max-w-[14rem] truncate py-2.5 pr-4 text-ink-soft" title={c.organismo ?? undefined}>
+                  {c.organismo ?? '—'}
+                </td>
+                <td class="py-2.5 pr-4 whitespace-nowrap text-ink-soft">{estadoCompra(c.status)}</td>
+                <td class="num py-2.5 pr-4 text-right text-ink-soft">{int(c.adjudicaciones)}</td>
+                <td class="num py-2.5 pr-4 text-right whitespace-nowrap">{uyu(c.total_uyu)}</td>
+                <td class="num py-2.5 whitespace-nowrap text-ink-soft">{fecha(c.last_updated)}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+  </Card>
+</Layout>

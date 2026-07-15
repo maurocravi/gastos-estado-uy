@@ -1,0 +1,173 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Card from '../components/Card.astro';
+import Kpi from '../components/Kpi.astro';
+import { supabase, unwrap } from '../lib/supabase.js';
+import { int, uyu, uyuM, fecha, titulo } from '../lib/format.js';
+
+interface Kpis {
+  compras: number;
+  adjudicaciones: number;
+  organismos: number;
+  proveedores: number;
+  total_uyu: number | null;
+  total_usd: number | null;
+  desde: string | null;
+  hasta: string | null;
+}
+interface GastoRow {
+  id: string;
+  name: string;
+  compras?: number;
+  adjudicaciones?: number;
+  total_uyu: number;
+}
+interface CompraRow {
+  ocid: string;
+  id_compra: number | null;
+  tender_title: string | null;
+  status: string | null;
+  last_updated: string | null;
+  organismo: string | null;
+  total_uyu: number | null;
+  item_principal: string | null;
+}
+
+const kpis = unwrap<Kpis>(
+  await supabase.from('dash_kpis').select('*').single(),
+  'dash_kpis',
+);
+const organismos = unwrap<GastoRow[]>(
+  await supabase.from('dash_gasto_organismo').select('*').order('total_uyu', { ascending: false }).limit(10),
+  'dash_gasto_organismo',
+);
+const proveedores = unwrap<GastoRow[]>(
+  await supabase.from('dash_gasto_proveedor').select('*').order('total_uyu', { ascending: false }).limit(10),
+  'dash_gasto_proveedor',
+);
+const recientes = unwrap<CompraRow[]>(
+  await supabase
+    .from('dash_compras')
+    .select('*')
+    .order('last_updated', { ascending: false })
+    .limit(10),
+  'dash_compras',
+);
+
+const maxOrganismo = Math.max(...organismos.map((o) => o.total_uyu));
+const periodo = `adjudicaciones del ${fecha(kpis.desde)} al ${fecha(kpis.hasta)}`;
+---
+
+<Layout>
+  <div class="col-span-12">
+    <h1 class="text-xl font-semibold tracking-tight">Resumen</h1>
+    <p class="mt-1 text-sm text-ink-soft">{periodo}</p>
+  </div>
+
+  <!-- KPIs -->
+  <Kpi label="Adjudicado" value={uyuM(kpis.total_uyu)} sub="pesos uruguayos, montos normalizados" />
+  <Kpi label="Adjudicado (US$)" value={uyuM(kpis.total_usd, 'US$')} sub="al tipo de cambio BCU de cada fecha" />
+  <Kpi label="Compras" value={int(kpis.compras)} sub={`${int(kpis.adjudicaciones)} adjudicaciones`} />
+  <Kpi label="Actores" value={int(kpis.organismos)} sub={`organismos compradores · ${int(kpis.proveedores)} proveedores`} />
+
+  <!-- Gasto por organismo: rampa de un solo tono, el ancho codifica magnitud -->
+  <Card
+    title="Gasto por organismo"
+    sub="top 10 por monto adjudicado"
+    class="col-span-12 lg:col-span-7"
+  >
+    <ol class="flex flex-col gap-3">
+      {
+        organismos.map((o) => (
+          <li>
+            <div class="mb-1 flex items-baseline justify-between gap-4">
+              <span class="truncate text-sm text-ink" title={o.name}>{o.name}</span>
+              <span class="num shrink-0 text-sm text-ink-soft">{uyuM(o.total_uyu)}</span>
+            </div>
+            <div class="h-2 rounded-full bg-bar-soft/40">
+              <div
+                class="h-2 rounded-full bg-bar"
+                style={`width: ${Math.max(1.5, (o.total_uyu / maxOrganismo) * 100)}%`}
+              />
+            </div>
+          </li>
+        ))
+      }
+    </ol>
+  </Card>
+
+  <!-- Top proveedores -->
+  <Card
+    title="Top proveedores"
+    sub="top 10 por monto adjudicado"
+    class="col-span-12 lg:col-span-5"
+  >
+    <ol class="flex flex-col">
+      {
+        proveedores.map((p, i) => (
+          <li class="flex items-baseline gap-3 border-b border-line py-2.5 last:border-b-0">
+            <span class="num w-5 shrink-0 text-xs text-ink-faint">{i + 1}</span>
+            <span class="min-w-0 truncate text-sm text-ink" title={p.name}>{p.name}</span>
+            <span class="num ml-auto shrink-0 text-sm text-ink-soft">{uyuM(p.total_uyu)}</span>
+          </li>
+        ))
+      }
+    </ol>
+  </Card>
+
+  <!-- Últimas compras -->
+  <Card title="Últimas compras" sub="las 10 actualizadas más recientemente">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-line text-left text-xs text-ink-faint">
+            <th class="py-2 pr-4 font-medium">Compra</th>
+            <th class="py-2 pr-4 font-medium">Objeto</th>
+            <th class="py-2 pr-4 font-medium">Organismo</th>
+            <th class="py-2 pr-4 font-medium">Actualizada</th>
+            <th class="py-2 text-right font-medium">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            recientes.map((c) => (
+              <tr class="border-b border-line last:border-b-0">
+                <td class="num py-2.5 pr-4 whitespace-nowrap">
+                  {c.id_compra != null ? (
+                    <a href={`/compras/${c.id_compra}`} class="font-medium text-primary hover:underline">
+                      {c.id_compra}
+                    </a>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+                <td
+                  class="max-w-[26rem] truncate py-2.5 pr-4"
+                  title={c.tender_title ?? c.item_principal ?? undefined}
+                >
+                  {c.id_compra != null ? (
+                    <a href={`/compras/${c.id_compra}`} class="hover:underline">
+                      {titulo(c.tender_title ?? c.item_principal)}
+                    </a>
+                  ) : (
+                    titulo(c.tender_title ?? c.item_principal)
+                  )}
+                </td>
+                <td class="max-w-[16rem] truncate py-2.5 pr-4 text-ink-soft" title={c.organismo ?? undefined}>
+                  {c.organismo ?? '—'}
+                </td>
+                <td class="num py-2.5 pr-4 whitespace-nowrap text-ink-soft">
+                  {fecha(c.last_updated)}
+                </td>
+                <td class="num py-2.5 text-right whitespace-nowrap">{uyu(c.total_uyu)}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+    <p class="mt-4 text-right">
+      <a href="/compras" class="text-sm font-medium text-primary hover:underline">Ver todas las compras →</a>
+    </p>
+  </Card>
+</Layout>

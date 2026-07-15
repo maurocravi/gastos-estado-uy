@@ -1,0 +1,67 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Card from '../components/Card.astro';
+import { supabase, unwrap } from '../lib/supabase.js';
+import { int, uyuM } from '../lib/format.js';
+import { slugEntidad } from '../lib/entidades.js';
+
+interface Row {
+  id: string;
+  name: string;
+  compras: number;
+  total_uyu: number;
+}
+
+const rows = unwrap<Row[]>(
+  await supabase
+    .from('dash_gasto_organismo')
+    .select('*')
+    .order('total_uyu', { ascending: false })
+    .limit(50),
+  'dash_gasto_organismo',
+);
+
+const totalGeneral = rows.reduce((s, r) => s + r.total_uyu, 0);
+---
+
+<Layout title="Organismos">
+  <div class="col-span-12">
+    <h1 class="text-xl font-semibold tracking-tight">Organismos</h1>
+    <p class="mt-1 text-sm text-ink-soft">quién compra y por cuánto</p>
+  </div>
+
+  <Card title="Gasto por organismo" sub="top 50 por monto adjudicado (normalizado a pesos)">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-line text-left text-xs text-ink-faint">
+            <th class="py-2 pr-4 font-medium">#</th>
+            <th class="py-2 pr-4 font-medium">Organismo</th>
+            <th class="py-2 pr-4 text-right font-medium">Compras</th>
+            <th class="py-2 pr-4 text-right font-medium">Total</th>
+            <th class="py-2 text-right font-medium">% del top</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            rows.map((r, i) => (
+              <tr class="border-b border-line last:border-b-0">
+                <td class="num py-2.5 pr-4 text-xs text-ink-faint">{i + 1}</td>
+                <td class="max-w-[30rem] truncate py-2.5 pr-4" title={r.name}>
+                  <a href={`/organismos/${slugEntidad(r.id)}`} class="hover:underline">
+                    {r.name}
+                  </a>
+                </td>
+                <td class="num py-2.5 pr-4 text-right text-ink-soft">{int(r.compras)}</td>
+                <td class="num py-2.5 pr-4 text-right">{uyuM(r.total_uyu)}</td>
+                <td class="num py-2.5 text-right text-ink-soft">
+                  {((r.total_uyu / totalGeneral) * 100).toFixed(1).replace('.', ',')} %
+                </td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+  </Card>
+</Layout>

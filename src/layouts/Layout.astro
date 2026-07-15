@@ -1,0 +1,89 @@
+---
+import '../styles/global.css';
+// Fuentes self-hosted (@fontsource): mejor que el CDN de Google por
+// privacidad y velocidad. Sans para UI, Mono para números.
+import '@fontsource/ibm-plex-sans/400.css';
+import '@fontsource/ibm-plex-sans/500.css';
+import '@fontsource/ibm-plex-sans/600.css';
+import '@fontsource/ibm-plex-sans/700.css';
+import '@fontsource/ibm-plex-mono/400.css';
+import '@fontsource/ibm-plex-mono/500.css';
+
+interface Props {
+  title?: string;
+}
+
+const { title } = Astro.props;
+const pageTitle = title ? `${title} · Compras del Estado` : 'Compras del Estado · Uruguay';
+
+const nav = [
+  { href: '/', label: 'Resumen' },
+  { href: '/organismos', label: 'Organismos' },
+  { href: '/proveedores', label: 'Proveedores' },
+  { href: '/compras', label: 'Compras' },
+];
+const path = Astro.url.pathname.replace(/\/$/, '') || '/';
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="generator" content={Astro.generator} />
+    <meta
+      name="description"
+      content="Datos abiertos de compras y adjudicaciones del Estado uruguayo (fuente: ARCE, formato OCDS)."
+    />
+    <title>{pageTitle}</title>
+  </head>
+  <body class="min-h-screen bg-canvas font-sans text-ink antialiased">
+    <!-- Barra superior fina -->
+    <header class="sticky top-0 z-10 border-b border-line bg-surface">
+      <div class="flex h-12 items-center gap-3 px-5">
+        <a href="/" class="flex items-baseline gap-2">
+          <span class="text-sm font-semibold tracking-tight text-primary-deep">
+            Compras del Estado
+          </span>
+          <span class="hidden text-xs text-ink-faint sm:inline">Uruguay · datos abiertos</span>
+        </a>
+        <span class="ml-auto text-xs text-ink-faint">fuente: ARCE / OCDS</span>
+      </div>
+    </header>
+
+    <div class="flex">
+      <!-- Sidebar angosto -->
+      <aside class="sticky top-12 hidden h-[calc(100vh-3rem)] w-48 shrink-0 border-r border-line px-3 py-6 md:block">
+        <nav class="flex flex-col gap-1">
+          {
+            nav.map((item) => {
+              const active = path === item.href;
+              return (
+                <a
+                  href={item.href}
+                  aria-current={active ? 'page' : undefined}
+                  class:list={[
+                    'rounded-md px-3 py-1.5 text-sm',
+                    active
+                      ? 'bg-primary-tint font-medium text-primary'
+                      : 'text-ink-soft hover:bg-primary-tint/50 hover:text-ink',
+                  ]}
+                >
+                  {item.label}
+                </a>
+              );
+            })
+          }
+        </nav>
+      </aside>
+
+      <!-- Contenido: grilla de 12, ancho máximo 1280 -->
+      <main class="min-w-0 flex-1">
+        <div class="mx-auto grid max-w-[1280px] grid-cols-12 gap-6 px-5 py-10 lg:px-10">
+          <slot />
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

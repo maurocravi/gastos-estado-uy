@@ -1,0 +1,36 @@
+{
+  "name": "compras-estado-uy",
+  "type": "module",
+  "version": "0.0.1",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "ingest": "tsx src/scripts/ingest.ts",
+    "rates": "tsx src/scripts/rates.ts",
+    "normalize": "tsx src/scripts/normalize.ts",
+    "repair": "tsx src/scripts/repair-awards.ts",
+    "typecheck": "astro check"
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-mono": "^5.2.7",
+    "@fontsource/ibm-plex-sans": "^5.2.8",
+    "@supabase/supabase-js": "^2.110.0",
+    "@tailwindcss/vite": "^4.3.2",
+    "astro": "^7.0.6",
+    "dotenv": "^17.4.2",
+    "fast-xml-parser": "^5.9.3",
+    "p-limit": "^7.3.0",
+    "tailwindcss": "^4.3.2"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.9",
+    "@types/node": "^26.1.0",
+    "tsx": "^4.22.5",
+    "typescript": "^6.0.3"
+  }
+}

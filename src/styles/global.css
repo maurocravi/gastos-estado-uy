@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+/*
+ * Tokens de diseño (Tailwind 4: el theme vive en CSS, no en tailwind.config).
+ *
+ * Regla de color: base neutra cálida + UN primario (azul institucional
+ * profundo) usado con avaricia, solo en lo interactivo y lo destacado.
+ * Rojo y ámbar quedan RESERVADOS para banderas de anomalías reales:
+ * nunca usarlos de decoración.
+ */
+@theme {
+  /* Tipografía: Plex Sans para UI, Plex Mono para números (self-hosted
+     vía @fontsource, importadas en Layout.astro). */
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+
+  /* Neutros: off-white apenas cálido, cardes blancos, texto gris pizarra. */
+  --color-canvas: #faf9f6;
+  --color-surface: #ffffff;
+  --color-line: #e9e6e0;
+  --color-ink: #1e293b;
+  --color-ink-soft: #64748b;
+  --color-ink-faint: #94a3b8;
+
+  /* Primario: azul institucional profundo. */
+  --color-primary: #1e40af;
+  --color-primary-deep: #1e3a8a;
+  --color-primary-tint: #eef2fb;
+  /* Rampa de un solo tono para magnitudes (barras de gasto). */
+  --color-bar: #3556b8;
+  --color-bar-soft: #c7d4f0;
+
+  /* Banderas: SOLO para anomalías reales (todavía sin uso en v1). */
+  --color-flag-danger: #b91c1c;
+  --color-flag-warn: #b45309;
+}
+
+/* Los números de datos siempre tabulares, alineados y prolijos. */
+@utility num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}

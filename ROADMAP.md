@@ -1,0 +1,61 @@
+# Roadmap
+
+Estado al 2026-07-03: pipeline OCDS→Supabase completo (ingest/rates/normalize),
+front Astro estático con resumen, organismos, proveedores, compras y detalle
+por compra. La base tiene todo 2026 (enero a julio parcial): 41.863 compras,
+48.851 adjudicaciones, 121.242 ítems. Todo se actualiza manualmente.
+
+## Automatización (pendiente)
+
+Hoy el flujo es manual en dos capas:
+
+1. **Datos**: `npm run ingest -- <año> <mes>` → `npm run repair` → `npm run rates`
+   → `npm run normalize`. El pipeline es idempotente: reprocesar el mes en curso
+   actualiza sin duplicar, y `repair` reconstruye desde `releases.raw` cualquier
+   award que haya quedado desviado (vista `awards_desactualizados`).
+2. **Sitio**: es estático — los datos quedan congelados en el build. Después de
+   actualizar datos hay que hacer `astro build` + deploy.
+
+Plan propuesto:
+
+- [ ] Inicializar repo git y subir a GitHub.
+- [ ] Elegir hosting estático (Netlify / Vercel / Cloudflare Pages).
+- [ ] GitHub Action con cron diario: ingest + rates + normalize del mes en curso,
+      después build + deploy. Secrets: `SUPABASE_URL`, service key (solo para el
+      paso de datos), publishable key (para el build).
+- [ ] Alerta si el job falla (el feed de ARCE a veces devuelve 404 en releases
+      listados en su propio RSS; el ingest ya lo tolera).
+
+## Funcionalidades (en orden de valor)
+
+1. **Ingerir historia (más meses)** ✔ 2026 completo (2026-07-03)
+   Hecho para enero–julio 2026. Extensión pendiente: 2025 hacia atrás (el feed
+   lo tiene, ~13k releases/mes) con el mismo procedimiento:
+   ingerir en orden cronológico viejo→nuevo y **re-ingerir los meses ya
+   cargados al final** (el ingest borra/reinserta awards por ocid: un mes viejo
+   pisaría ajustes de adjudicación más nuevos). Cerrar siempre con `rates`,
+   `normalize` y el backfill SQL de `purchases` desde `releases.raw`
+   (ver memoria del proyecto).
+
+2. **Buscador con filtros**
+   Hoy solo se ven las 100 compras más grandes; hay ~8.000 invisibles por mes.
+   Sin abandonar el sitio estático: JS en el cliente consultando la API REST de
+   Supabase con la publishable key (RLS de solo lectura ya configurado).
+   Filtros: organismo, proveedor, texto, rango de montos/fechas.
+
+3. **Fichas de organismo y proveedor** ✔ (2026-07-04)
+   `/organismos/[id]` (282) y `/proveedores/[id]` (~5.900) con KPIs,
+   contrapartes principales con % de concentración y compras mayores, todo
+   linkeado desde listados y detalle de compra. Los datos salen de
+   `dash_adjudicaciones` + `dash_compras` (ahora con `buyer_id`) cargadas una
+   vez por build en `src/lib/entidades.ts`; los ids raros de proveedores
+   extranjeros se sanean con `slugEntidad`.
+
+4. **Comparador de precios unitarios**
+   Los ítems traen clasificación, cantidad, unidad y monto normalizado a pesos:
+   permite responder "¿cuánto pagó cada organismo por el mismo producto?".
+   Alto valor de transparencia/periodístico con datos que ya tenemos.
+
+5. **Evolución temporal, alertas y export**
+   Series mensuales por organismo/rubro, alertas de adjudicaciones grandes,
+   export CSV. Las dos primeras necesitan el punto 1.

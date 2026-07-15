@@ -1,0 +1,21 @@
+---
+// Carde con borde sutil (nada de sombras pesadas: esto es un documento).
+interface Props {
+  title?: string;
+  sub?: string;
+  class?: string;
+}
+const { title, sub, class: cls = 'col-span-12' } = Astro.props;
+---
+
+<section class:list={['rounded-lg border border-line bg-surface p-6', cls]}>
+  {
+    title && (
+      <header class="mb-5">
+        <h2 class="text-sm font-semibold text-ink">{title}</h2>
+        {sub && <p class="mt-0.5 text-xs text-ink-faint">{sub}</p>}
+      </header>
+    )
+  }
+  <slot />
+</section>

@@ -1,0 +1,195 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Card from '../../components/Card.astro';
+import Kpi from '../../components/Kpi.astro';
+import { int, uyu, uyuM, pct, fecha, titulo } from '../../lib/format.js';
+import { estadoCompra } from '../../lib/estados.js';
+import {
+  cargarEntidades,
+  rankingContrapartes,
+  slugEntidad,
+  type CompraResumen,
+} from '../../lib/entidades.js';
+
+interface Proveedor {
+  id: string;
+  name: string;
+  adjudicaciones: number;
+  total_uyu: number;
+}
+interface Props {
+  nombre: string;
+  entidadId: string;
+  totalUyu: number;
+  nCompras: number;
+  nAdjudicaciones: number;
+  proveedores: Proveedor[];
+  compras: CompraResumen[];
+}
+
+const TOP_PROVEEDORES = 15;
+const TOP_COMPRAS = 50;
+
+export async function getStaticPaths() {
+  const datos = await cargarEntidades();
+  return datos.entidades
+    .filter((e) => e.is_buyer)
+    .map((e) => {
+      const compras = [...(datos.comprasPorOrganismo.get(e.id) ?? [])].sort(
+        (x, y) => (y.total_uyu ?? 0) - (x.total_uyu ?? 0),
+      );
+      const adjudicaciones = datos.adjudicacionesPorOrganismo.get(e.id) ?? [];
+      const proveedores = rankingContrapartes(adjudicaciones, (a) => a.supplier_id).map((p) => ({
+        ...p,
+        name: datos.nombrePorId.get(p.id) ?? p.id,
+      }));
+      return {
+        params: { id: slugEntidad(e.id) },
+        props: {
+          nombre: e.name,
+          entidadId: e.id,
+          totalUyu: adjudicaciones.reduce((s, a) => s + (a.total_uyu ?? 0), 0),
+          nCompras: compras.length,
+          nAdjudicaciones: adjudicaciones.length,
+          proveedores,
+          compras,
+        } satisfies Props,
+      };
+    });
+}
+
+const { nombre, entidadId, totalUyu, nCompras, nAdjudicaciones, proveedores, compras } =
+  Astro.props as Props;
+
+const topProveedores = proveedores.slice(0, TOP_PROVEEDORES);
+const topCompras = compras.slice(0, TOP_COMPRAS);
+---
+
+<Layout title={nombre}>
+  <div class="col-span-12">
+    <a href="/organismos" class="text-sm font-medium text-primary hover:underline">← Organismos</a>
+    <h1 class="mt-2 text-xl font-semibold tracking-tight">{nombre}</h1>
+    <p class="mt-1 text-sm text-ink-soft">organismo comprador · id {entidadId}</p>
+  </div>
+
+  <Kpi
+    label="Adjudicado"
+    value={uyuM(totalUyu)}
+    sub="pesos uruguayos, montos normalizados"
+    class="col-span-12 sm:col-span-4"
+  />
+  <Kpi
+    label="Compras"
+    value={int(nCompras)}
+    sub={`${int(nAdjudicaciones)} adjudicaciones`}
+    class="col-span-12 sm:col-span-4"
+  />
+  <Kpi
+    label="Proveedores"
+    value={int(proveedores.length)}
+    sub={proveedores.length
+      ? `el principal concentra ${pct(totalUyu ? proveedores[0].total_uyu / totalUyu : null)}`
+      : 'sin adjudicaciones registradas'}
+    class="col-span-12 sm:col-span-4"
+  />
+
+  <Card
+    title="Principales proveedores"
+    sub={`top ${topProveedores.length} de ${int(proveedores.length)} por monto adjudicado`}
+  >
+    {
+      topProveedores.length === 0 ? (
+        <p class="text-sm text-ink-soft">
+          Este organismo todavía no tiene adjudicaciones registradas en el feed OCDS.
+        </p>
+      ) : (
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-line text-left text-xs text-ink-faint">
+                <th class="py-2 pr-4 font-medium">#</th>
+                <th class="py-2 pr-4 font-medium">Proveedor</th>
+                <th class="py-2 pr-4 text-right font-medium">Adjudicaciones</th>
+                <th class="py-2 pr-4 text-right font-medium">Total</th>
+                <th class="py-2 text-right font-medium">% del organismo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {topProveedores.map((p, i) => (
+                <tr class="border-b border-line last:border-b-0">
+                  <td class="num py-2.5 pr-4 text-xs text-ink-faint">{i + 1}</td>
+                  <td class="max-w-[30rem] truncate py-2.5 pr-4" title={p.name}>
+                    <a href={`/proveedores/${slugEntidad(p.id)}`} class="hover:underline">
+                      {p.name}
+                    </a>
+                  </td>
+                  <td class="num py-2.5 pr-4 text-right text-ink-soft">{int(p.adjudicaciones)}</td>
+                  <td class="num py-2.5 pr-4 text-right whitespace-nowrap">{uyu(p.total_uyu)}</td>
+                  <td class="num py-2.5 text-right text-ink-soft">
+                    {pct(totalUyu ? p.total_uyu / totalUyu : null)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )
+    }
+  </Card>
+
+  <Card
+    title="Compras más grandes"
+    sub={`top ${topCompras.length} de ${int(nCompras)} por monto adjudicado`}
+  >
+    {
+      topCompras.length === 0 ? (
+        <p class="text-sm text-ink-soft">Sin compras registradas.</p>
+      ) : (
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-line text-left text-xs text-ink-faint">
+                <th class="py-2 pr-4 font-medium">Compra</th>
+                <th class="py-2 pr-4 font-medium">Objeto</th>
+                <th class="py-2 pr-4 font-medium">Estado</th>
+                <th class="py-2 pr-4 text-right font-medium">Adj.</th>
+                <th class="py-2 pr-4 text-right font-medium">Total</th>
+                <th class="py-2 font-medium">Actualizada</th>
+              </tr>
+            </thead>
+            <tbody>
+              {topCompras.map((c) => (
+                <tr class="border-b border-line last:border-b-0">
+                  <td class="num py-2.5 pr-4 whitespace-nowrap">
+                    {c.id_compra != null ? (
+                      <a
+                        href={`/compras/${c.id_compra}`}
+                        class="font-medium text-primary hover:underline"
+                      >
+                        {c.id_compra}
+                      </a>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td
+                    class="max-w-[24rem] truncate py-2.5 pr-4"
+                    title={c.tender_title ?? c.item_principal ?? undefined}
+                  >
+                    {titulo(c.tender_title ?? c.item_principal, 70)}
+                  </td>
+                  <td class="py-2.5 pr-4 whitespace-nowrap text-ink-soft">
+                    {estadoCompra(c.status)}
+                  </td>
+                  <td class="num py-2.5 pr-4 text-right text-ink-soft">{int(c.adjudicaciones)}</td>
+                  <td class="num py-2.5 pr-4 text-right whitespace-nowrap">{uyu(c.total_uyu)}</td>
+                  <td class="num py-2.5 whitespace-nowrap text-ink-soft">{fecha(c.last_updated)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )
+    }
+  </Card>
+</Layout>
