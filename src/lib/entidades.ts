@@ -64,7 +64,6 @@ export interface DatosEntidades {
   compraPorOcid: Map<string, CompraResumen>;
   comprasPorOrganismo: Map<string, CompraResumen[]>;
   adjudicacionesPorOrganismo: Map<string, Adjudicacion[]>;
-  adjudicacionesPorProveedor: Map<string, Adjudicacion[]>;
   nombrePorId: Map<string, string>;
 }
 
@@ -100,10 +99,8 @@ async function cargar(): Promise<DatosEntidades> {
   }
 
   const adjudicacionesPorOrganismo = new Map<string, Adjudicacion[]>();
-  const adjudicacionesPorProveedor = new Map<string, Adjudicacion[]>();
   for (const a of adjudicaciones) {
     agrupar(adjudicacionesPorOrganismo, a.buyer_id, a);
-    agrupar(adjudicacionesPorProveedor, a.supplier_id, a);
   }
 
   const nombrePorId = new Map(entidades.map((e) => [e.id, e.name]));
@@ -113,7 +110,6 @@ async function cargar(): Promise<DatosEntidades> {
     compraPorOcid,
     comprasPorOrganismo,
     adjudicacionesPorOrganismo,
-    adjudicacionesPorProveedor,
     nombrePorId,
   };
 }

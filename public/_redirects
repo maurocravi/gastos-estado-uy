@@ -1,4 +1,6 @@
-# Cloudflare Pages: /compras/{id} sirve la página única de detalle (rewrite
-# 200, la URL no cambia); el id se lee del path en el cliente. El listado
-# /compras no matchea (la regla exige un segmento más, no vacío).
+# Cloudflare Pages: /compras/{id} y /proveedores/{slug} sirven páginas únicas
+# client-side (rewrite 200, la URL no cambia); el id se lee del path en el
+# cliente. Los listados /compras y /proveedores no matchean (la regla exige un
+# segmento más, no vacío).
 /compras/:id /compras/detalle/ 200
+/proveedores/:id /proveedores/detalle/ 200
