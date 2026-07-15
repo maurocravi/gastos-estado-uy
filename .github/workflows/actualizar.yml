@@ -1,0 +1,57 @@
+# Actualización diaria: ingesta del mes en curso + build + deploy a
+# Cloudflare Pages. También mantiene activo el proyecto Supabase (el plan
+# free se pausa tras ~7 días sin actividad).
+name: Actualizar datos y sitio
+
+on:
+  schedule:
+    # 08:00 UTC = 05:00 en Uruguay: ARCE ya publicó el día anterior completo.
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: actualizar
+  cancel-in-progress: false
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Ingerir y normalizar datos
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          mes=$(date -u +%Y-%m)
+          # Primeros días del mes: reprocesar también el anterior, que puede
+          # seguir recibiendo releases (siempre viejo→nuevo).
+          if [ "$(date -u +%-d)" -le 3 ]; then
+            anterior=$(date -u -d "$(date -u +%Y-%m-01) -1 month" +%Y-%m)
+            npm run ingest -- "$anterior"
+          fi
+          npm run ingest -- "$mes"
+          npm run repair
+          npm run rates
+          npm run normalize
+
+      - name: Build del sitio
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: npm run build
+
+      - name: Deploy a Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler pages deploy dist --project-name gastos-estado-uy --branch main
