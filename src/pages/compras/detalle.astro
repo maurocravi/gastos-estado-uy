@@ -238,7 +238,7 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const compras = (await res.json()) as Compra[];
       if (!compras.length) {
-        mensaje(`No encontramos la compra ${id}. Puede que sea anterior a los datos cargados (2026).`);
+        mensaje(`No encontramos la compra ${id}. Puede que sea anterior a los datos cargados (desde 2025).`);
         return;
       }
       render(compras[0]);

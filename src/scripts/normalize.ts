@@ -94,6 +94,7 @@ async function* iterItems(force: boolean): AsyncGenerator<ItemRow[]> {
       .from('award_items')
       .select('id, award_id, amount, currency, awards(award_date)')
       .not('amount', 'is', null)
+      .order('id') // orden total estable: sin esto las páginas se solapan/saltean
       .range(from, from + PAGE - 1);
     if (!force) q = q.is('amount_uyu', null);
 
@@ -108,6 +109,16 @@ async function* iterItems(force: boolean): AsyncGenerator<ItemRow[]> {
 function awardDate(row: ItemRow): string | null {
   const aw = Array.isArray(row.awards) ? row.awards[0] : row.awards;
   return aw?.award_date ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Refresh de las vistas materializadas dash_* (última etapa del pipeline).
+// ---------------------------------------------------------------------------
+
+async function refreshDash() {
+  console.log('  Refrescando vistas dash_*...');
+  const { error } = await supabase.rpc('refresh_dash');
+  if (error) throw new Error(`refresh_dash: ${error.message}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -165,7 +176,11 @@ async function main() {
 
   console.log(`  Items procesados: ${seen}`);
   if (seen === 0) {
-    console.log('\n  Nada pendiente. (Usá --force para recalcular todo.)\n');
+    console.log('\n  Nada pendiente. (Usá --force para recalcular todo.)');
+    // Refrescamos igual: ingest/repair pueden haber cambiado compras o awards
+    // aunque no haya items nuevos que normalizar.
+    await refreshDash();
+    console.log();
     return;
   }
 
@@ -177,6 +192,7 @@ async function main() {
   // upsert con onConflict=id: como los ids ya existen, solo actualiza las
   // columnas del payload (amount_uyu/amount_usd); el resto queda intacto.
   await upsertRows('award_items', updates, 'id');
+  await refreshDash();
   console.log(`\n✔ Listo. ${converted}/${seen} items normalizados.\n`);
 }
 
