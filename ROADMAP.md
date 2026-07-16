@@ -1,9 +1,10 @@
 # Roadmap
 
-Estado al 2026-07-03: pipeline OCDS→Supabase completo (ingest/rates/normalize),
-front Astro estático con resumen, organismos, proveedores, compras y detalle
-por compra. La base tiene todo 2026 (enero a julio parcial): 41.863 compras,
-48.851 adjudicaciones, 121.242 ítems. Todo se actualiza manualmente.
+Estado al 2026-07-15: pipeline OCDS→Supabase completo (ingest/repair/rates/
+normalize + refresh de vistas materializadas), front Astro con cron diario que
+ingiere, buildea y despliega solo. La base tiene 2025 completo + 2026 (enero a
+julio parcial): 127.336 compras, 159.128 adjudicaciones, 386.216 ítems,
+~$205 mil millones UYU adjudicados.
 
 ## Automatización (pendiente)
 
@@ -42,14 +43,13 @@ Plan propuesto:
 
 ## Funcionalidades (en orden de valor)
 
-1. **Ingerir historia (más meses)** ✔ 2026 completo (2026-07-03)
-   Hecho para enero–julio 2026. Extensión pendiente: 2025 hacia atrás (el feed
-   lo tiene, ~13k releases/mes) con el mismo procedimiento:
-   ingerir en orden cronológico viejo→nuevo y **re-ingerir los meses ya
-   cargados al final** (el ingest borra/reinserta awards por ocid: un mes viejo
-   pisaría ajustes de adjudicación más nuevos). Cerrar siempre con `rates`,
-   `normalize` y el backfill SQL de `purchases` desde `releases.raw`
-   (ver memoria del proyecto).
+1. **Ingerir historia (más meses)** ✔ 2025 completo (2026-07-15)
+   Hecho para 2025 y 2026. Extensión pendiente: 2024 hacia atrás, si el feed
+   llega (~13k releases/mes). Procedimiento vigente: meses en cualquier orden
+   y cerrar con `repair` + `rates` + `normalize` (que ya refresca las vistas
+   materializadas) y el backfill SQL de `purchases` desde `releases.raw`
+   (ver memoria del proyecto). Con 2025 las vistas dash_* pasaron a
+   materializadas: más historia solo alarga el refresh, no el build.
 
 2. **Buscador con filtros**
    Hoy solo se ven las 100 compras más grandes; hay ~8.000 invisibles por mes.
@@ -72,4 +72,16 @@ Plan propuesto:
 
 5. **Evolución temporal, alertas y export**
    Series mensuales por organismo/rubro, alertas de adjudicaciones grandes,
-   export CSV. Las dos primeras necesitan el punto 1.
+   export CSV. Con 2025+2026 cargados ya hay dos años comparables.
+
+6. **Flag de outliers de la fuente**
+   Hay compras donde el organismo carga la "cantidad" como unidades
+   presupuestales y el total explota. Casos confirmados (ambos UTE, los números
+   coinciden con la ficha oficial de ARCE, no es bug del pipeline):
+   - 1315467 "servicio de chofer": 27.000.000 × $454,29 ≈ $12,3 mil millones.
+   - 1210976 subestaciones: 798.848 × $88.760,80 ≈ $71,0 mil millones (34% del
+     total del sitio y top-1 del listado).
+   Idea: lista curada de ocids (tabla `outliers` con motivo) + heurística que
+   solo *sugiera* candidatos; las vistas dash_* excluyen lo flaggeado de las
+   agregaciones y el front muestra la compra con un aviso, nunca la oculta.
+   Ojo con falsos positivos: hay obras legítimas de miles de millones.
