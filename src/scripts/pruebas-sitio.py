@@ -2,7 +2,8 @@
 """Pruebas de consistencia del sitio en producción contra la base (PostgREST).
 
 Compara lo que muestran las páginas (estáticas via HTTP, client-side via
-Chrome headless) con recálculos independientes desde las tablas base.
+Chrome headless — incluye el buscador de /compras) con recálculos
+independientes desde las tablas base.
 
 Uso: python3 src/scripts/pruebas-sitio.py  (requiere Chrome instalado; usa la
 publishable key de .env, la misma del navegador). Pensado para correrse tras
@@ -99,9 +100,9 @@ def num_es(s):
 
 
 # ==============================================================================
-# 1. Listado /compras/: orden, sin duplicados, totales contra la base
+# 1. Buscador /compras/ (client-side): orden, duplicados, totales y full-text
 # ==============================================================================
-html = pagina_http("/compras/")
+html = render("/compras/")
 trs = re.findall(r"<tr[^>]*>(.*?)</tr>", html, flags=re.S)
 listado = []
 for tr in trs:
@@ -110,19 +111,49 @@ for tr in trs:
     if m_id and m_tot:
         listado.append((int(m_id.group(1)), num_es(m_tot[-1])))
 
-check("listado: 100 filas", len(listado) == 100, f"{len(listado)} filas")
+check("buscador: 50 filas (una página)", len(listado) == 50, f"{len(listado)} filas")
 ids = [i for i, _ in listado]
-check("listado: sin compras repetidas", len(set(ids)) == len(ids))
+check("buscador: sin compras repetidas", len(set(ids)) == len(ids))
 tots = [t for _, t in listado]
-check("listado: ordenado por monto desc", tots == sorted(tots, reverse=True))
+check("buscador: ordenado por monto desc", tots == sorted(tots, reverse=True))
 
 # totales de una muestra contra dash_compras (fila por fila, sin sort pesado)
-muestra = [listado[0], listado[9], listado[49], listado[99]]
+muestra = [listado[0], listado[9], listado[49]]
 difs = []
 for id_compra, total_pagina in muestra:
     fila = db("dash_compras", select="total_uyu,adjudicaciones", id_compra=f"eq.{id_compra}")[0]
     difs.append(abs(round(fila["total_uyu"]) - total_pagina))
-check("listado: totales coinciden con dash_compras (muestra de 4)", max(difs) <= 1, f"difs {difs}")
+check("buscador: totales coinciden con dash_compras (muestra de 3)", max(difs) <= 1, f"difs {difs}")
+
+# el contador sin filtros == count(dash_compras)
+m_total = re.search(r"([\d.]+) compras encontradas", texto(html))
+n_total_base = db("dash_compras", count=True, select="ocid")
+check(
+    "buscador: contador sin filtros == count(dash_compras)",
+    m_total is not None and num_es(m_total.group(1)) == n_total_base,
+    f"pagina={m_total.group(1) if m_total else None} base={n_total_base}",
+)
+
+# full-text: mismo total en la página (con tilde) que en la base (sin tilde)
+t_fts = texto(render("/compras/?q=cami%C3%B3n"))
+m_fts = re.search(r"([\d.]+) compras encontradas", t_fts)
+n_fts_base = db("dash_compras", count=True, select="ocid", busqueda="wfts(es_unaccent).camion")
+check(
+    "buscador: total full-text 'camión' (página) == 'camion' (base)",
+    m_fts is not None and num_es(m_fts.group(1)) == n_fts_base,
+    f"pagina={m_fts.group(1) if m_fts else None} base={n_fts_base}",
+)
+
+# filtro por proveedor vía URL == count por supplier_ids
+prov_filtro = "R210001230018"
+t_prov = texto(render(f"/compras/?prov={prov_filtro}"))
+m_prov = re.search(r"([\d.]+) compras encontradas", t_prov)
+n_prov_base = db("dash_compras", count=True, select="ocid", supplier_ids=f'cs.{{"{prov_filtro}"}}')
+check(
+    "buscador: filtro proveedor (página) == count supplier_ids (base)",
+    m_prov is not None and num_es(m_prov.group(1)) == n_prov_base,
+    f"pagina={m_prov.group(1) if m_prov else None} base={n_prov_base}",
+)
 
 TOP_ID = listado[0][0]
 TOP_TOTAL = listado[0][1]

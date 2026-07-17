@@ -51,11 +51,17 @@ Plan propuesto:
    (ver memoria del proyecto). Con 2025 las vistas dash_* pasaron a
    materializadas: más historia solo alarga el refresh, no el build.
 
-2. **Buscador con filtros**
-   Hoy solo se ven las 100 compras más grandes; hay ~8.000 invisibles por mes.
-   Sin abandonar el sitio estático: JS en el cliente consultando la API REST de
-   Supabase con la publishable key (RLS de solo lectura ya configurado).
-   Filtros: organismo, proveedor, texto, rango de montos/fechas.
+2. **Buscador con filtros** ✔ (2026-07-16)
+   `/compras` es ahora un buscador client-side sobre `dash_compras` (misma
+   arquitectura que el detalle: JS + PostgREST con la publishable key).
+   Filtros: texto full-text en español sin tildes (config `es_unaccent`,
+   recorre título + todos los ítems adjudicados), organismo, proveedor
+   (autocomplete), tipo de procedimiento (cobertura ~32%, ARCE solo lo
+   informa en los llamados), estado (grupos semánticos), rango de fechas de
+   adjudicación y de montos; orden por monto o fecha, paginado de a 50 con
+   total exacto, y filtros en el querystring (URLs compartibles). La vista
+   ganó `fecha`, `tipo`, `supplier_ids` y el tsvector `busqueda` (+índices
+   GIN); un número de compra pegado en el buscador va directo a esa compra.
 
 3. **Fichas de organismo y proveedor** ✔ (2026-07-04)
    `/organismos/[id]` (282) y `/proveedores/[id]` (~5.900) con KPIs,
