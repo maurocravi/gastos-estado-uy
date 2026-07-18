@@ -31,6 +31,9 @@ const path = Astro.url.pathname.replace(/\/$/, '') || '/';
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Safari no soporta favicons SVG: cae al PNG. -->
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="generator" content={Astro.generator} />
     <meta
       name="description"
