@@ -87,6 +87,25 @@ Plan propuesto:
    - 1315467 "servicio de chofer": 27.000.000 × $454,29 ≈ $12,3 mil millones.
    - 1210976 subestaciones: 798.848 × $88.760,80 ≈ $71,0 mil millones (34% del
      total del sitio y top-1 del listado).
+
+   También existe el caso inverso: montos simbólicos ridículamente chicos.
+   Confirmado (2026-07-18): 1309282 OSE "operación de PTAR Pueblo Gil"
+   figura como 1 unidad × $12 en SICE y en la ficha oficial de ARCE, pero el
+   acta de resolución (PDF adjunto a la adjudicación) autoriza
+   $U 5.614.008 + IVA. El pipeline es fiel a la fuente; quien cargó la
+   adjudicación puso un precio testimonial. Idea: flag para adjudicaciones
+   con total menor a un umbral (~$1.000) con aviso en el detalle
+   ("monto posiblemente simbólico; ver el acta"), reutilizando la misma
+   tabla `outliers` con motivo.
+
+   Y fechas de adjudicación sucias: ~3.690 adjudicaciones (2,3%) son
+   anteriores a 2025. Casi todas legítimas (procesos de 2023-24 publicados
+   dentro de nuestra ventana de ingesta, regularizaciones 2019-22), pero la
+   compra 1244146 (ANEP, excepción 38/2025) trae "Fecha Resolución:
+   30/04/2005" también en la ficha oficial de ARCE: typo por 2025. Como
+   dash_kpis.desde era min(award_date), la portada decía "adjudicaciones
+   desde 30/04/2005"; se cambió el subtítulo para describir la cobertura de
+   ingesta (2026-07-18). El typo en sí queda como candidato a `outliers`.
    Idea: lista curada de ocids (tabla `outliers` con motivo) + heurística que
    solo *sugiera* candidatos; las vistas dash_* excluyen lo flaggeado de las
    agregaciones y el front muestra la compra con un aviso, nunca la oculta.

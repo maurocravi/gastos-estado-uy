@@ -57,7 +57,11 @@ const recientes = unwrap<CompraRow[]>(
 );
 
 const maxOrganismo = Math.max(...organismos.map((o) => o.total_uyu));
-const periodo = `adjudicaciones del ${fecha(kpis.desde)} al ${fecha(kpis.hasta)}`;
+// El período describe la cobertura de ingesta (releases publicados desde
+// ene-2025), no min/max de award_date: hay fechas de adjudicación viejas
+// legítimas (procesos de 2023-24 publicados tarde) y typos de la fuente
+// (una resolución "30/04/2005" que es 2025 — ver ROADMAP, outliers).
+const periodo = `datos publicados desde enero 2025 · última adjudicación ${fecha(kpis.hasta)}`;
 ---
 
 <Layout>
