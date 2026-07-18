@@ -10,6 +10,7 @@ import {
   slugEntidad,
   type CompraResumen,
 } from '../../lib/entidades.js';
+import { nombreOrganismo } from '../../lib/incisos.js';
 
 interface Proveedor {
   id: string;
@@ -46,7 +47,7 @@ export async function getStaticPaths() {
       return {
         params: { id: slugEntidad(e.id) },
         props: {
-          nombre: e.name,
+          nombre: nombreOrganismo(e.name, e.id),
           entidadId: e.id,
           totalUyu: adjudicaciones.reduce((s, a) => s + (a.total_uyu ?? 0), 0),
           nCompras: compras.length,

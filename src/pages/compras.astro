@@ -2,6 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import Card from '../components/Card.astro';
 import { supabase, unwrap } from '../lib/supabase.js';
+import { nombreOrganismo } from '../lib/incisos.js';
 
 // Buscador de compras: el formulario se hornea en el build (organismos y
 // tipos de procedimiento cambian poco) y los resultados se consultan desde
@@ -13,7 +14,9 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
 const organismos = unwrap<{ id: string; name: string }[]>(
   await supabase.from('entities').select('id,name').eq('is_buyer', true).limit(1000),
   'entities (buyers)',
-).sort((a, b) => a.name.trim().localeCompare(b.name.trim(), 'es'));
+)
+  .map((o) => ({ id: o.id, name: nombreOrganismo(o.name.trim(), o.id) }))
+  .sort((a, b) => a.name.localeCompare(b.name, 'es'));
 
 const tipos = unwrap<{ tipo: string; compras: number }[]>(
   await supabase.from('dash_tipos').select('tipo,compras'),
@@ -48,7 +51,7 @@ const tipos = unwrap<{ tipo: string; compras: number }[]>(
         <span class="text-xs text-ink-soft">Organismo</span>
         <select name="org" class="rounded-md border border-line bg-surface px-3 py-1.5 text-sm text-ink focus:border-primary focus:outline-none">
           <option value="">Todos</option>
-          {organismos.map((o) => <option value={o.id}>{o.name.trim()}</option>)}
+          {organismos.map((o) => <option value={o.id}>{o.name}</option>)}
         </select>
       </label>
 
@@ -137,6 +140,7 @@ const tipos = unwrap<{ tipo: string; compras: number }[]>(
   import { int, uyu, fecha, titulo } from '../lib/format.js';
   import { estadoCompra } from '../lib/estados.js';
   import { guardarBusquedaCompras } from '../lib/busqueda.js';
+  import { nombreOrganismo } from '../lib/incisos.js';
 
   interface Row {
     ocid: string;
@@ -144,6 +148,7 @@ const tipos = unwrap<{ tipo: string; compras: number }[]>(
     tender_title: string | null;
     status: string | null;
     organismo: string | null;
+    buyer_id: string | null;
     adjudicaciones: number;
     total_uyu: number | null;
     item_principal: string | null;
@@ -295,7 +300,7 @@ const tipos = unwrap<{ tipo: string; compras: number }[]>(
     const p = new URLSearchParams();
     p.set(
       'select',
-      'ocid,id_compra,tender_title,status,organismo,adjudicaciones,total_uyu,item_principal,fecha,tipo',
+      'ocid,id_compra,tender_title,status,organismo,buyer_id,adjudicaciones,total_uyu,item_principal,fecha,tipo',
     );
     // Un número (o un ocid pegado) busca la compra puntual, no texto.
     const id = f.q.match(/^(?:ocds-yfs5dr-)?(\d{5,})$/);
@@ -325,13 +330,14 @@ const tipos = unwrap<{ tipo: string; compras: number }[]>(
 
   const filaCompra = (c: Row) => {
     const objeto = c.tender_title ?? c.item_principal;
+    const organismo = nombreOrganismo(c.organismo, c.buyer_id);
     const link = (inner: string, extra = '') =>
       c.id_compra != null ? `<a href="/compras/${c.id_compra}" class="${extra} hover:underline">${inner}</a>` : inner;
     return `
       <tr class="border-b border-line last:border-b-0">
         <td class="num py-2.5 pr-4 whitespace-nowrap">${link(String(c.id_compra ?? '—'), 'font-medium text-primary')}</td>
         <td class="max-w-[24rem] truncate py-2.5 pr-4" title="${esc(objeto ?? '')}">${link(esc(titulo(objeto, 70)))}</td>
-        <td class="max-w-[14rem] truncate py-2.5 pr-4 text-ink-soft" title="${esc(c.organismo ?? '')}">${esc(c.organismo ?? '—')}</td>
+        <td class="max-w-[14rem] truncate py-2.5 pr-4 text-ink-soft" title="${esc(organismo ?? '')}">${esc(organismo ?? '—')}</td>
         <td class="py-2.5 pr-4 whitespace-nowrap text-ink-soft">${esc(estadoCompra(c.status))}</td>
         <td class="num py-2.5 pr-4 text-right text-ink-soft">${int(c.adjudicaciones)}</td>
         <td class="num py-2.5 pr-4 text-right whitespace-nowrap">${uyu(c.total_uyu)}</td>

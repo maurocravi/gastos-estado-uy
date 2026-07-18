@@ -4,6 +4,7 @@ import Card from '../components/Card.astro';
 import { supabase, unwrap } from '../lib/supabase.js';
 import { int, uyuM } from '../lib/format.js';
 import { slugEntidad } from '../lib/entidades.js';
+import { nombreOrganismo } from '../lib/incisos.js';
 
 interface Row {
   id: string;
@@ -47,9 +48,9 @@ const totalGeneral = rows.reduce((s, r) => s + r.total_uyu, 0);
             rows.map((r, i) => (
               <tr class="border-b border-line last:border-b-0">
                 <td class="num py-2.5 pr-4 text-xs text-ink-faint">{i + 1}</td>
-                <td class="max-w-[30rem] truncate py-2.5 pr-4" title={r.name}>
+                <td class="max-w-[30rem] truncate py-2.5 pr-4" title={nombreOrganismo(r.name, r.id)}>
                   <a href={`/organismos/${slugEntidad(r.id)}`} class="hover:underline">
-                    {r.name}
+                    {nombreOrganismo(r.name, r.id)}
                   </a>
                 </td>
                 <td class="num py-2.5 pr-4 text-right text-ink-soft">{int(r.compras)}</td>

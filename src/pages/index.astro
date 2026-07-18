@@ -4,6 +4,7 @@ import Card from '../components/Card.astro';
 import Kpi from '../components/Kpi.astro';
 import { supabase, unwrap } from '../lib/supabase.js';
 import { int, uyu, uyuM, fecha, titulo } from '../lib/format.js';
+import { nombreOrganismo } from '../lib/incisos.js';
 
 interface Kpis {
   compras: number;
@@ -29,6 +30,7 @@ interface CompraRow {
   status: string | null;
   last_updated: string | null;
   organismo: string | null;
+  buyer_id: string | null;
   total_uyu: number | null;
   item_principal: string | null;
 }
@@ -81,7 +83,7 @@ const periodo = `adjudicaciones del ${fecha(kpis.desde)} al ${fecha(kpis.hasta)}
         organismos.map((o) => (
           <li>
             <div class="mb-1 flex items-baseline justify-between gap-4">
-              <span class="truncate text-sm text-ink" title={o.name}>{o.name}</span>
+              <span class="truncate text-sm text-ink" title={nombreOrganismo(o.name, o.id)}>{nombreOrganismo(o.name, o.id)}</span>
               <span class="num shrink-0 text-sm text-ink-soft">{uyuM(o.total_uyu)}</span>
             </div>
             <div class="h-2 rounded-full bg-bar-soft/40">
@@ -153,8 +155,8 @@ const periodo = `adjudicaciones del ${fecha(kpis.desde)} al ${fecha(kpis.hasta)}
                     titulo(c.tender_title ?? c.item_principal)
                   )}
                 </td>
-                <td class="max-w-[16rem] truncate py-2.5 pr-4 text-ink-soft" title={c.organismo ?? undefined}>
-                  {c.organismo ?? '—'}
+                <td class="max-w-[16rem] truncate py-2.5 pr-4 text-ink-soft" title={nombreOrganismo(c.organismo, c.buyer_id) ?? undefined}>
+                  {nombreOrganismo(c.organismo, c.buyer_id) ?? '—'}
                 </td>
                 <td class="num py-2.5 pr-4 whitespace-nowrap text-ink-soft">
                   {fecha(c.last_updated)}

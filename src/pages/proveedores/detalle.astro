@@ -30,6 +30,7 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
 <script>
   import { int, uyu, uyuM, pct, fecha, titulo } from '../../lib/format.js';
   import { slugEntidad } from '../../lib/slug.js';
+  import { nombreOrganismo } from '../../lib/incisos.js';
 
   interface Adjudicacion {
     ocid: string;
@@ -165,8 +166,8 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
         (c, i) => `
         <tr class="border-b border-line last:border-b-0">
           <td class="num py-2.5 pr-4 text-xs text-ink-faint">${i + 1}</td>
-          <td class="max-w-[30rem] truncate py-2.5 pr-4" title="${esc(nombrePorId.get(c.id) ?? c.id)}">
-            <a href="/organismos/${esc(slugEntidad(c.id))}" class="hover:underline">${esc(nombrePorId.get(c.id) ?? c.id)}</a>
+          <td class="max-w-[30rem] truncate py-2.5 pr-4" title="${esc(nombreOrganismo(nombrePorId.get(c.id) ?? c.id, c.id))}">
+            <a href="/organismos/${esc(slugEntidad(c.id))}" class="hover:underline">${esc(nombreOrganismo(nombrePorId.get(c.id) ?? c.id, c.id))}</a>
           </td>
           <td class="num py-2.5 pr-4 text-right text-ink-soft">${esc(int(c.adjudicaciones))}</td>
           <td class="num py-2.5 pr-4 text-right whitespace-nowrap">${esc(uyu(c.total_uyu))}</td>
@@ -201,7 +202,7 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
       .map((c) => {
         const compra = compraPorOcid.get(c.ocid);
         const objeto = compra ? (compra.tender_title ?? compra.item_principal) : null;
-        const organismo = compra?.organismo ?? null;
+        const organismo = nombreOrganismo(compra?.organismo ?? null, c.buyer_id);
         return `
         <tr class="border-b border-line last:border-b-0">
           <td class="num py-2.5 pr-4 whitespace-nowrap">

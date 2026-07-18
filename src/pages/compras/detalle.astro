@@ -29,6 +29,7 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
   import { estadoCompra, estadoAdjudicacion } from '../../lib/estados.js';
   import { slugEntidad } from '../../lib/slug.js';
   import { urlVolverCompras } from '../../lib/busqueda.js';
+  import { nombreOrganismo } from '../../lib/incisos.js';
 
   interface Item {
     description: string | null;
@@ -129,8 +130,9 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
 
     document.title = `Compra ${compra.id_compra} · Compras del Estado`;
 
+    const buyerNombre = compra.buyer ? nombreOrganismo(compra.buyer.name, compra.buyer.id) : null;
     const linkBuyer = compra.buyer
-      ? `<a href="/organismos/${esc(slugEntidad(compra.buyer.id))}" class="hover:underline">${esc(compra.buyer.name)}</a>`
+      ? `<a href="/organismos/${esc(slugEntidad(compra.buyer.id))}" class="hover:underline">${esc(buyerNombre!)}</a>`
       : 'organismo sin identificar';
 
     const filaFicha = (dt: string, dd: string) => `
@@ -215,7 +217,7 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
         'Ficha',
         'identificadores y fuente del proceso',
         `<dl class="grid grid-cols-1 gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
-          ${filaFicha('Organismo', compra.buyer ? `<a href="/organismos/${esc(slugEntidad(compra.buyer.id))}" class="font-medium text-primary hover:underline">${esc(compra.buyer.name)}</a>` : '—')}
+          ${filaFicha('Organismo', compra.buyer ? `<a href="/organismos/${esc(slugEntidad(compra.buyer.id))}" class="font-medium text-primary hover:underline">${esc(buyerNombre!)}</a>` : '—')}
           ${filaFicha('ocid', `<span class="text-ink-soft">${esc(compra.ocid)}</span>`)}
           ${filaFicha('Primera vez vista', esc(fecha(compra.first_seen)))}
           ${filaFicha('Última actualización', esc(fecha(compra.last_updated)))}
