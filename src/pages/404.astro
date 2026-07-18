@@ -1,0 +1,23 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+// Astro la emite como dist/404.html y Cloudflare Pages la sirve con status
+// 404 para toda ruta inexistente (sin ella, Pages devolvía index.html con
+// 200 como fallback SPA). Las URLs /compras/{id} y /proveedores/{slug} no
+// pasan por acá: las captura antes el rewrite de public/_redirects.
+---
+
+<Layout title="Página no encontrada">
+  <div class="col-span-12 flex flex-col items-center py-24 text-center">
+    <p class="num text-7xl font-semibold text-primary">404</p>
+    <h1 class="mt-4 text-xl font-semibold tracking-tight">No encontramos esa página</h1>
+    <p class="mt-2 max-w-md text-sm text-ink-soft">
+      La dirección puede estar mal escrita, o la página ya no existe. Si buscás una
+      compra puntual, pegá su número en el buscador.
+    </p>
+    <p class="mt-6 flex flex-wrap justify-center gap-x-8 gap-y-2 text-sm font-medium">
+      <a href="/" class="text-primary hover:underline">← Volver al resumen</a>
+      <a href="/compras" class="text-primary hover:underline">Buscar compras →</a>
+    </p>
+  </div>
+</Layout>
