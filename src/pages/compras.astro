@@ -407,16 +407,12 @@ const tipos = unwrap<{ tipo: string; compras: number }[]>(
     }
   }
 
+  // Ningún filtro busca solo: todos esperan el botón Buscar (o Enter). Buscar
+  // al cambiar un campo saltaba a los resultados a mitad de carga del
+  // formulario (p. ej. entre el «desde» y el «hasta» de un rango de fechas).
   form.addEventListener('submit', (ev) => {
     ev.preventDefault();
     buscar(leerFormulario(1));
-  });
-  // Cambiar un select o una fecha busca al toque; el texto espera el submit.
-  form.addEventListener('change', (ev) => {
-    const el = ev.target as HTMLElement;
-    if (el instanceof HTMLSelectElement || (el instanceof HTMLInputElement && el.type === 'date')) {
-      buscar(leerFormulario(1));
-    }
   });
 
   document.getElementById('limpiar')!.addEventListener('click', () => {
