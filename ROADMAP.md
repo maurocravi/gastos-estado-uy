@@ -51,6 +51,28 @@ Plan propuesto:
    (ver memoria del proyecto). Con 2025 las vistas dash_* pasaron a
    materializadas: más historia solo alarga el refresh, no el build.
 
+   **Bloqueante: 2024 no entra en el free tier de Supabase.** Medido el
+   2026-07-18: la base está en 423 de 500 MB y ya es casi todo dato
+   normalizado, no raw archivable (award_items 134 MB, releases 111,
+   dash_compras 66, awards 46, dash_adjudicaciones 29, purchases 19). Cada
+   año adicional agrega ~200 MB (~125 de tablas + ~60 de matviews + ~20 de
+   metadata de releases): 2024 nos deja en ~620 MB. Opciones evaluadas:
+   - **Migrar a Postgres + PostgREST en un VPS propio** (recomendada si se
+     ingiere más historia). Del stack de Supabase solo usamos esas dos
+     piezas; PostgREST es un contenedor standalone y el JS del sitio
+     funcionaría casi sin cambios (URL base nueva; el header apikey sobra
+     pero no molesta). Gestionable con Dokploy: el panel es open source
+     (gratis en el mismo VPS) o Dokploy Cloud a US$ 4,50/mes — en ambos
+     casos el VPS va aparte (~US$ 4-6/mes). Elegir VPS con región São
+     Paulo (DigitalOcean/Vultr; Hetzner no tiene Sudamérica) para no
+     empeorar la latencia del buscador client-side vs sa-east-1 actual.
+     Plan de migración: dump/restore, PostgREST con rol anon + grants +
+     RLS + statement_timeout, secrets nuevos en el cron de GitHub Actions,
+     backups automáticos, y `pruebas-sitio.py` contra el endpoint nuevo.
+     Se pierde: dashboard de Supabase, MCP, y la pausa por inactividad
+     (esto último es ganancia).
+   - **Supabase Pro** (US$ 25/mes, 8 GB): cero migración, 4-5× el costo.
+
 2. **Buscador con filtros** ✔ (2026-07-16)
    `/compras` es ahora un buscador client-side sobre `dash_compras` (misma
    arquitectura que el detalle: JS + PostgREST con la publishable key).
