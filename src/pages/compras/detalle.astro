@@ -28,6 +28,7 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
   import { int, uyu, cant, moneda, fecha, titulo } from '../../lib/format.js';
   import { estadoCompra, estadoAdjudicacion } from '../../lib/estados.js';
   import { slugEntidad } from '../../lib/slug.js';
+  import { urlVolverCompras } from '../../lib/busqueda.js';
 
   interface Item {
     description: string | null;
@@ -63,6 +64,12 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
   const esc = (s: string) =>
     s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
+  // «← Compras» vuelve a la última búsqueda del buscador (si la hay).
+  const hrefVolver = urlVolverCompras();
+  const linkVolver = () =>
+    `<a href="${esc(hrefVolver)}" class="text-sm font-medium text-primary hover:underline">← Compras</a>`;
+  cont.querySelector<HTMLAnchorElement>('a[href="/compras"]')?.setAttribute('href', hrefVolver);
+
   /** /compras/{id} (rewrite de Cloudflare) o ?id= (dev local, sin rewrites). */
   function idCompra(): string | null {
     const m = location.pathname.match(/\/compras\/([^/]+)\/?$/);
@@ -76,7 +83,7 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
   function mensaje(texto: string) {
     cont.innerHTML = `
       <div class="col-span-12">
-        <a href="/compras" class="text-sm font-medium text-primary hover:underline">← Compras</a>
+        ${linkVolver()}
         <p class="mt-2 text-sm text-ink-soft">${esc(texto)}</p>
       </div>`;
   }
@@ -197,7 +204,7 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
 
     cont.innerHTML = `
       <div class="col-span-12">
-        <a href="/compras" class="text-sm font-medium text-primary hover:underline">← Compras</a>
+        ${linkVolver()}
         <h1 class="mt-2 text-xl font-semibold tracking-tight">${esc(titulo(objeto, 140))}</h1>
         <p class="mt-1 text-sm text-ink-soft">compra ${compra.id_compra} · ${linkBuyer}</p>
       </div>

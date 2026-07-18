@@ -136,6 +136,7 @@ const tipos = unwrap<{ tipo: string; compras: number }[]>(
 <script>
   import { int, uyu, fecha, titulo } from '../lib/format.js';
   import { estadoCompra } from '../lib/estados.js';
+  import { guardarBusquedaCompras } from '../lib/busqueda.js';
 
   interface Row {
     ocid: string;
@@ -287,6 +288,7 @@ const tipos = unwrap<{ tipo: string; compras: number }[]>(
     if (f.pagina > 1) p.set('p', String(f.pagina));
     const qs = p.toString();
     history.replaceState(null, '', qs ? `?${qs}` : location.pathname);
+    guardarBusquedaCompras(qs);
   }
 
   function paramsPostgrest(f: Filtros): URLSearchParams {
