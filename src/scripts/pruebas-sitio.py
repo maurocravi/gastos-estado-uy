@@ -379,6 +379,69 @@ for id_compra in [TOP_ID, 1074933]:
         check(f"ARCE: la compra {id_compra} existe en la fuente oficial", False, str(e)[:80])
 
 # ==============================================================================
+# 8. Flags de outliers (tabla `outliers`): exclusión de agregados + aviso
+# ==============================================================================
+outliers = db("outliers", select="id_compra,tipo,nota")
+inflados = [o["id_compra"] for o in outliers if o["tipo"] == "monto_inflado"]
+
+# el flag aparece en dash_compras con el mismo tipo, y la compra sigue existiendo
+flag_ok = True
+for o in outliers:
+    fila = db("dash_compras", select="outlier,total_uyu", id_compra=f"eq.{o['id_compra']}")
+    if not fila or fila[0]["outlier"] != o["tipo"]:
+        flag_ok = False
+    # los inflados quedan con total NULL (fuera de rankings/orden por monto)
+    if o["tipo"] == "monto_inflado" and fila and fila[0]["total_uyu"] is not None:
+        flag_ok = False
+check("outliers: cada flag aparece en dash_compras; inflados con total NULL", flag_ok)
+
+# las adjudicaciones de los inflados también van con total NULL (fichas no suman)
+adj_no_null = 0
+for id_compra in inflados:
+    adj_no_null += db(
+        "dash_adjudicaciones", count=True, select="award_pk",
+        id_compra=f"eq.{id_compra}", total_uyu="not.is.null",
+    )
+check("outliers: adjudicaciones de inflados con total NULL", adj_no_null == 0, f"{adj_no_null} sin anular")
+
+# los KPIs declaran cuántos y cuánto se excluye, y coincide con el recálculo
+excluido_real = sum(detalle_esperado(id_compra)["total"] for id_compra in inflados)
+check(
+    "outliers: kpis.outliers_excluidos == nº de inflados",
+    kpis["outliers_excluidos"] == len(inflados),
+    f"kpis={kpis['outliers_excluidos']} tabla={len(inflados)}",
+)
+check(
+    "outliers: kpis.total_excluido_uyu ~ suma real de los inflados",
+    kpis["total_excluido_uyu"] and abs(kpis["total_excluido_uyu"] - excluido_real) <= 1,
+    f"kpis={kpis['total_excluido_uyu']:,.0f} recálculo={excluido_real:,.0f}",
+)
+
+# detalle de un inflado: muestra el aviso, PERO conserva el monto real (fiel a la fuente)
+if inflados:
+    id_infl = inflados[0]
+    t, total_mostrado, _ = detalle_mostrado(id_infl)
+    esp_infl = detalle_esperado(id_infl)
+    check(
+        f"outlier {id_infl}: el detalle muestra el aviso de monto no representativo",
+        "excluye de los totales" in t or "no es representativo" in t or "inflado" in t,
+        t[t.find("compra") : t.find("compra") + 80] if "compra" in t else t[:120],
+    )
+    check(
+        f"outlier {id_infl}: el detalle conserva el monto real (fiel a la fuente)",
+        total_mostrado is not None and abs(total_mostrado - esp_infl["total"]) <= 1,
+        f"detalle={total_mostrado} fuente={esp_infl['total']}",
+    )
+
+# portada: nota de disclosure con el nº de compras excluidas
+t_home = texto(pagina_http("/"))
+check(
+    "resumen: la portada declara las compras excluidas por monto no representativo",
+    ("excluyen" in t_home and "no representativos" in t_home) or kpis["outliers_excluidos"] == 0,
+    t_home[t_home.find("excluyen") : t_home.find("excluyen") + 90] if "excluyen" in t_home else "sin nota",
+)
+
+# ==============================================================================
 print()
 fallas = [r for r in resultados if not r[1]]
 print(f"== {len(resultados) - len(fallas)}/{len(resultados)} pruebas OK ==")

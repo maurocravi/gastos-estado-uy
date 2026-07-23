@@ -102,33 +102,35 @@ Plan propuesto:
    Series mensuales por organismo/rubro, alertas de adjudicaciones grandes,
    export CSV. Con 2025+2026 cargados ya hay dos años comparables.
 
-6. **Flag de outliers de la fuente**
-   Hay compras donde el organismo carga la "cantidad" como unidades
-   presupuestales y el total explota. Casos confirmados (ambos UTE, los números
-   coinciden con la ficha oficial de ARCE, no es bug del pipeline):
-   - 1315467 "servicio de chofer": 27.000.000 × $454,29 ≈ $12,3 mil millones.
-   - 1210976 subestaciones: 798.848 × $88.760,80 ≈ $71,0 mil millones (34% del
-     total del sitio y top-1 del listado).
+6. **Flag de outliers de la fuente** ✔ (2026-07-23)
+   Tabla curada `outliers` (`id_compra`, `tipo`, `nota`; RLS de lectura
+   pública) con tres tipos. Enfoque **híbrido**, el estándar de la disciplina
+   (winsorizing con disclosure): a nivel de registro individual se muestra el
+   monto real de la fuente con una advertencia; a nivel de agregado el outlier
+   se excluye y se declara. Solo `monto_inflado` toca las vistas: las dash_*
+   ponen su `total_uyu` en NULL (dash_compras/dash_adjudicaciones, así no
+   encabeza rankings ni suma en fichas) y lo excluyen de dash_kpis y
+   dash_gasto_*. `dash_compras` expone además la columna `outlier` (el tipo) y
+   dash_kpis suma `outliers_excluidos` + `total_excluido_uyu` para la nota de
+   la portada. El front (`src/lib/outliers.ts`): banner de aviso en el detalle
+   con la `nota`, badge ⚠ en listados/buscador/fichas, y la portada declara
+   "los totales y rankings excluyen N compras (...)". La compra nunca se
+   oculta. `pruebas-sitio.py` sección 8 lo blinda.
 
-   También existe el caso inverso: montos simbólicos ridículamente chicos.
-   Confirmado (2026-07-18): 1309282 OSE "operación de PTAR Pueblo Gil"
-   figura como 1 unidad × $12 en SICE y en la ficha oficial de ARCE, pero el
-   acta de resolución (PDF adjunto a la adjudicación) autoriza
-   $U 5.614.008 + IVA. El pipeline es fiel a la fuente; quien cargó la
-   adjudicación puso un precio testimonial. Idea: flag para adjudicaciones
-   con total menor a un umbral (~$1.000) con aviso en el detalle
-   ("monto posiblemente simbólico; ver el acta"), reutilizando la misma
-   tabla `outliers` con motivo.
+   Casos sembrados (todos coinciden con la ficha oficial de ARCE, no son bugs
+   del pipeline):
+   - 1315467 UTE "servicio de chofer": 27.000.000 × $454,29 ≈ $12,3 mil M
+     (`monto_inflado`).
+   - 1210976 UTE subestaciones: 798.848 × $88.760,80 ≈ $71,0 mil M
+     (`monto_inflado`). Entre las dos se excluyen ~$83,3 mil M: el total del
+     sitio pasó de ~$207 mil M a ~$123,9 mil M.
+   - 1309282 OSE "PTAR Pueblo Gil": 1 × $12 en SICE/ARCE pero el acta autoriza
+     $U 5.614.008 + IVA (`monto_simbolico`, solo aviso, no toca agregados).
+   - 1244146 CES (excepción 38/2025): "Fecha Resolución 30/04/2005" es typo por
+     2025 (`fecha`, solo aviso).
 
-   Y fechas de adjudicación sucias: ~3.690 adjudicaciones (2,3%) son
-   anteriores a 2025. Casi todas legítimas (procesos de 2023-24 publicados
-   dentro de nuestra ventana de ingesta, regularizaciones 2019-22), pero la
-   compra 1244146 (ANEP, excepción 38/2025) trae "Fecha Resolución:
-   30/04/2005" también en la ficha oficial de ARCE: typo por 2025. Como
-   dash_kpis.desde era min(award_date), la portada decía "adjudicaciones
-   desde 30/04/2005"; se cambió el subtítulo para describir la cobertura de
-   ingesta (2026-07-18). El typo en sí queda como candidato a `outliers`.
-   Idea: lista curada de ocids (tabla `outliers` con motivo) + heurística que
-   solo *sugiera* candidatos; las vistas dash_* excluyen lo flaggeado de las
-   agregaciones y el front muestra la compra con un aviso, nunca la oculta.
-   Ojo con falsos positivos: hay obras legítimas de miles de millones.
+   Pendiente (mejoras): heurística que *sugiera* candidatos (montos < ~$1.000,
+   o cantidades sospechosamente grandes) sin flaggear solo; ojo con falsos
+   positivos (hay obras legítimas de miles de millones). ~3.690 adjudicaciones
+   (2,3%) tienen fecha anterior a 2025, casi todas legítimas (procesos viejos
+   publicados tarde): no se tocan, solo el typo confirmado está flaggeado.

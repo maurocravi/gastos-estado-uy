@@ -4,6 +4,7 @@ import Card from '../../components/Card.astro';
 import Kpi from '../../components/Kpi.astro';
 import { int, uyu, uyuM, pct, fecha, titulo } from '../../lib/format.js';
 import { estadoCompra } from '../../lib/estados.js';
+import { etiquetaOutlier } from '../../lib/outliers.js';
 import {
   cargarEntidades,
   rankingContrapartes,
@@ -183,7 +184,14 @@ const topCompras = compras.slice(0, TOP_COMPRAS);
                     {estadoCompra(c.status)}
                   </td>
                   <td class="num py-2.5 pr-4 text-right text-ink-soft">{int(c.adjudicaciones)}</td>
-                  <td class="num py-2.5 pr-4 text-right whitespace-nowrap">{uyu(c.total_uyu)}</td>
+                  <td class="num py-2.5 pr-4 text-right whitespace-nowrap">
+                    {uyu(c.total_uyu)}
+                    {etiquetaOutlier(c.outlier) && (
+                      <span class="ml-1 cursor-help text-flag-warn" title={etiquetaOutlier(c.outlier)!}>
+                        ⚠
+                      </span>
+                    )}
+                  </td>
                   <td class="num py-2.5 whitespace-nowrap text-ink-soft">{fecha(c.last_updated)}</td>
                 </tr>
               ))}

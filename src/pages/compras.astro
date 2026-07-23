@@ -141,6 +141,7 @@ const tipos = unwrap<{ tipo: string; compras: number }[]>(
   import { estadoCompra } from '../lib/estados.js';
   import { guardarBusquedaCompras } from '../lib/busqueda.js';
   import { nombreOrganismo } from '../lib/incisos.js';
+  import { etiquetaOutlier } from '../lib/outliers.js';
 
   interface Row {
     ocid: string;
@@ -154,6 +155,7 @@ const tipos = unwrap<{ tipo: string; compras: number }[]>(
     item_principal: string | null;
     fecha: string | null;
     tipo: string | null;
+    outlier: string | null;
   }
 
   const POR_PAGINA = 50;
@@ -300,7 +302,7 @@ const tipos = unwrap<{ tipo: string; compras: number }[]>(
     const p = new URLSearchParams();
     p.set(
       'select',
-      'ocid,id_compra,tender_title,status,organismo,buyer_id,adjudicaciones,total_uyu,item_principal,fecha,tipo',
+      'ocid,id_compra,tender_title,status,organismo,buyer_id,adjudicaciones,total_uyu,item_principal,fecha,tipo,outlier',
     );
     // Un número (o un ocid pegado) busca la compra puntual, no texto.
     const id = f.q.match(/^(?:ocds-yfs5dr-)?(\d{5,})$/);
@@ -333,6 +335,10 @@ const tipos = unwrap<{ tipo: string; compras: number }[]>(
     const organismo = nombreOrganismo(c.organismo, c.buyer_id);
     const link = (inner: string, extra = '') =>
       c.id_compra != null ? `<a href="/compras/${c.id_compra}" class="${extra} hover:underline">${inner}</a>` : inner;
+    const etq = etiquetaOutlier(c.outlier);
+    const badge = etq
+      ? `<span class="ml-1 cursor-help text-flag-warn" title="${esc(etq)}" aria-label="${esc(etq)}">⚠</span>`
+      : '';
     return `
       <tr class="border-b border-line last:border-b-0">
         <td class="num py-2.5 pr-4 whitespace-nowrap">${link(String(c.id_compra ?? '—'), 'font-medium text-primary')}</td>
@@ -340,7 +346,7 @@ const tipos = unwrap<{ tipo: string; compras: number }[]>(
         <td class="max-w-[14rem] truncate py-2.5 pr-4 text-ink-soft" title="${esc(organismo ?? '')}">${esc(organismo ?? '—')}</td>
         <td class="py-2.5 pr-4 whitespace-nowrap text-ink-soft">${esc(estadoCompra(c.status))}</td>
         <td class="num py-2.5 pr-4 text-right text-ink-soft">${int(c.adjudicaciones)}</td>
-        <td class="num py-2.5 pr-4 text-right whitespace-nowrap">${uyu(c.total_uyu)}</td>
+        <td class="num py-2.5 pr-4 text-right whitespace-nowrap">${uyu(c.total_uyu)}${badge}</td>
         <td class="num py-2.5 whitespace-nowrap text-ink-soft">${fecha(c.fecha)}</td>
       </tr>`;
   };

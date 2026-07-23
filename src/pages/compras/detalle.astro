@@ -59,6 +59,10 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
     buyer: { id: string; name: string } | null;
     awards: Adjudicacion[];
   }
+  interface Outlier {
+    tipo: string;
+    nota: string;
+  }
 
   const cont = document.getElementById('detalle')!;
 
@@ -105,7 +109,7 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
       ${cuerpo}
     </section>`;
 
-  function render(compra: Compra) {
+  function render(compra: Compra, outlier: Outlier | null) {
     const adjudicaciones = [...compra.awards].sort((a, b) =>
       (a.award_date ?? '9999').localeCompare(b.award_date ?? '9999'),
     );
@@ -204,12 +208,22 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
           '<p class="text-sm text-ink-soft">Esta compra todavía no tiene adjudicaciones registradas en el feed OCDS.</p>',
         );
 
+    const aviso = outlier
+      ? `<div class="col-span-12 rounded-lg border border-flag-warn/30 bg-flag-warn/10 px-5 py-4">
+          <p class="flex items-start gap-2 text-sm text-flag-warn">
+            <span aria-hidden="true" class="shrink-0">⚠</span>
+            <span>${esc(outlier.nota)}</span>
+          </p>
+        </div>`
+      : '';
+
     cont.innerHTML = `
       <div class="col-span-12">
         ${linkVolver()}
         <h1 class="mt-2 text-xl font-semibold tracking-tight">${esc(titulo(objeto, 140))}</h1>
         <p class="mt-1 text-sm text-ink-soft">compra ${compra.id_compra} · ${linkBuyer}</p>
       </div>
+      ${aviso}
       ${kpi('Adjudicado', uyu(adjudicaciones.length ? totalCompra : null), 'pesos uruguayos, montos normalizados')}
       ${kpi('Adjudicaciones', int(adjudicaciones.length), `${int(nItems)} ítems`)}
       ${kpi('Estado', estadoCompra(compra.status), `actualizada el ${fecha(compra.last_updated)}`)}
@@ -240,17 +254,22 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
     const select = `ocid,id_compra,tender_title,status,first_seen,last_updated,buyer:entities!purchases_buyer_id_fkey(id,name),awards(award_id,status,award_date,notice_url,supplier:entities!awards_supplier_id_fkey(id,name),items:award_items(description,classification_id,classification_desc,quantity,unit_name,amount,currency,amount_uyu))`;
     const params = new URLSearchParams({ select, id_compra: `eq.${id}` });
 
+    const paramsOutlier = new URLSearchParams({ select: 'tipo,nota', id_compra: `eq.${id}` });
+
     try {
-      const res = await fetch(`${supabaseUrl}/rest/v1/purchases?${params}`, {
-        headers: { apikey: supabaseKey! },
-      });
+      const [res, resOutlier] = await Promise.all([
+        fetch(`${supabaseUrl}/rest/v1/purchases?${params}`, { headers: { apikey: supabaseKey! } }),
+        fetch(`${supabaseUrl}/rest/v1/outliers?${paramsOutlier}`, { headers: { apikey: supabaseKey! } }),
+      ]);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const compras = (await res.json()) as Compra[];
       if (!compras.length) {
         mensaje(`No encontramos la compra ${id}. Puede que sea anterior a los datos cargados (desde 2025).`);
         return;
       }
-      render(compras[0]);
+      // El aviso es accesorio: si su fetch falla, la compra igual se muestra.
+      const outlier = resOutlier.ok ? ((await resOutlier.json()) as Outlier[])[0] ?? null : null;
+      render(compras[0], outlier);
     } catch (e) {
       mensaje(`No pudimos cargar la compra (${e instanceof Error ? e.message : e}). Probá recargar la página.`);
     }

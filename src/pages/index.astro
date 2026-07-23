@@ -5,6 +5,7 @@ import Kpi from '../components/Kpi.astro';
 import { supabase, unwrap } from '../lib/supabase.js';
 import { int, uyu, uyuM, fecha, titulo } from '../lib/format.js';
 import { nombreOrganismo } from '../lib/incisos.js';
+import { etiquetaOutlier } from '../lib/outliers.js';
 
 interface Kpis {
   compras: number;
@@ -15,6 +16,8 @@ interface Kpis {
   total_usd: number | null;
   desde: string | null;
   hasta: string | null;
+  outliers_excluidos: number;
+  total_excluido_uyu: number | null;
 }
 interface GastoRow {
   id: string;
@@ -33,6 +36,7 @@ interface CompraRow {
   buyer_id: string | null;
   total_uyu: number | null;
   item_principal: string | null;
+  outlier: string | null;
 }
 
 const kpis = unwrap<Kpis>(
@@ -75,6 +79,17 @@ const periodo = `datos publicados desde enero 2025 · última adjudicación ${fe
   <Kpi label="Adjudicado (US$)" value={uyuM(kpis.total_usd, 'US$')} sub="al tipo de cambio BCU de cada fecha" />
   <Kpi label="Compras" value={int(kpis.compras)} sub={`${int(kpis.adjudicaciones)} adjudicaciones`} />
   <Kpi label="Actores" value={int(kpis.organismos)} sub={`organismos compradores · ${int(kpis.proveedores)} proveedores`} />
+
+  {
+    kpis.outliers_excluidos > 0 && (
+      <p class="col-span-12 -mt-3 text-xs text-ink-faint">
+        Los totales y rankings excluyen {int(kpis.outliers_excluidos)}{' '}
+        {kpis.outliers_excluidos === 1 ? 'compra' : 'compras'} con montos no representativos por
+        errores de carga en la fuente ({uyuM(kpis.total_excluido_uyu)} en total). Siguen visibles en
+        los listados y el buscador, con su monto real y una advertencia.
+      </p>
+    )
+  }
 
   <!-- Gasto por organismo: rampa de un solo tono, el ancho codifica magnitud -->
   <Card
@@ -165,7 +180,14 @@ const periodo = `datos publicados desde enero 2025 · última adjudicación ${fe
                 <td class="num py-2.5 pr-4 whitespace-nowrap text-ink-soft">
                   {fecha(c.last_updated)}
                 </td>
-                <td class="num py-2.5 text-right whitespace-nowrap">{uyu(c.total_uyu)}</td>
+                <td class="num py-2.5 text-right whitespace-nowrap">
+                  {uyu(c.total_uyu)}
+                  {etiquetaOutlier(c.outlier) && (
+                    <span class="ml-1 cursor-help text-flag-warn" title={etiquetaOutlier(c.outlier)!}>
+                      ⚠
+                    </span>
+                  )}
+                </td>
               </tr>
             ))
           }

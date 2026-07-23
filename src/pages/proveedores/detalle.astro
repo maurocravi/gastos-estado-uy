@@ -31,6 +31,7 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
   import { int, uyu, uyuM, pct, fecha, titulo } from '../../lib/format.js';
   import { slugEntidad } from '../../lib/slug.js';
   import { nombreOrganismo } from '../../lib/incisos.js';
+  import { etiquetaOutlier } from '../../lib/outliers.js';
 
   interface Adjudicacion {
     ocid: string;
@@ -45,6 +46,7 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
     item_principal: string | null;
     organismo: string | null;
     buyer_id: string | null;
+    outlier: string | null;
   }
   interface CompraGanada {
     ocid: string;
@@ -203,6 +205,13 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
         const compra = compraPorOcid.get(c.ocid);
         const objeto = compra ? (compra.tender_title ?? compra.item_principal) : null;
         const organismo = nombreOrganismo(compra?.organismo ?? null, c.buyer_id);
+        const etq = etiquetaOutlier(compra?.outlier);
+        const badge = etq
+          ? `<span class="ml-1 cursor-help text-flag-warn" title="${esc(etq)}" aria-label="${esc(etq)}">⚠</span>`
+          : '';
+        // Los inflados vienen con total NULL en dash_adjudicaciones (suman 0):
+        // mostramos «—», no «$ 0».
+        const monto = compra?.outlier === 'monto_inflado' ? '—' : uyu(c.total_uyu);
         return `
         <tr class="border-b border-line last:border-b-0">
           <td class="num py-2.5 pr-4 whitespace-nowrap">
@@ -221,7 +230,7 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
             }
           </td>
           <td class="num py-2.5 pr-4 whitespace-nowrap text-ink-soft">${esc(fecha(c.fecha))}</td>
-          <td class="num py-2.5 text-right whitespace-nowrap">${esc(uyu(c.total_uyu))}</td>
+          <td class="num py-2.5 text-right whitespace-nowrap">${esc(monto)}${badge}</td>
         </tr>`;
       })
       .join('');
@@ -321,7 +330,7 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
           ? pedir<CompraResumen[]>(
               'dash_compras',
               new URLSearchParams({
-                select: 'ocid,tender_title,item_principal,organismo,buyer_id',
+                select: 'ocid,tender_title,item_principal,organismo,buyer_id,outlier',
                 ocid: enLista(ocidsTop),
               }),
             )

@@ -21,6 +21,7 @@ export interface CompraResumen {
   buyer_id: string | null;
   adjudicaciones: number;
   total_uyu: number | null;
+  outlier: string | null;
 }
 
 export interface Adjudicacion {
