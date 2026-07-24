@@ -1,0 +1,241 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Card from '../components/Card.astro';
+
+// Comparador de precios unitarios: buscás un producto (clasificación de ARCE) y
+// ves quién pagó cuánto por lo mismo. Misma arquitectura que el buscador de
+// /compras: la cáscara se hornea en el build y los resultados salen del
+// navegador contra PostgREST (matview dash_productos, publishable key de solo
+// lectura). El precio comparable es por (producto, unidad): la unidad no es
+// consistente dentro de un producto (los servicios vienen en HORA/MENSUAL/…).
+const supabaseUrl = import.meta.env.SUPABASE_URL as string;
+const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
+---
+
+<Layout title="Precios">
+  <div class="col-span-12">
+    <h1 class="text-xl font-semibold tracking-tight">Comparador de precios</h1>
+    <p class="mt-1 text-sm text-ink-soft">
+      buscá un producto y compará cuánto pagó cada organismo por la misma unidad
+    </p>
+  </div>
+
+  <Card title="Buscar producto" sub="el texto recorre el nombre del rubro de ARCE; no distingue tildes">
+    <form id="filtros" class="grid grid-cols-12 gap-3" autocomplete="off">
+      <input
+        type="search"
+        name="q"
+        placeholder="ej.: toner, carne de pollo, jeringa, pasaje aéreo, vigilancia"
+        class="col-span-12 rounded-md border border-line bg-surface px-3 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:border-primary focus:outline-none md:col-span-7"
+      />
+      <label class="col-span-8 flex flex-col gap-1 md:col-span-3">
+        <select name="orden" aria-label="Ordenar" class="rounded-md border border-line bg-surface px-3 py-1.5 text-sm text-ink focus:border-primary focus:outline-none">
+          <option value="comprado">Más comprados</option>
+          <option value="organismos">Más organismos</option>
+          <option value="caro">Mediana más alta</option>
+          <option value="barato">Mediana más baja</option>
+        </select>
+      </label>
+      <button
+        type="submit"
+        class="col-span-4 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-white hover:bg-primary-deep md:col-span-2"
+      >
+        Buscar
+      </button>
+      <p class="col-span-12 text-xs text-ink-faint">
+        Sin texto se listan los productos con más ítems adjudicados. Un mismo rubro puede aparecer en
+        varias unidades (unidad, kg, hora…): cada una se compara por separado.
+      </p>
+    </form>
+  </Card>
+
+  <Card title="Productos" sub="precio unitario normalizado a pesos; el rango habitual (p25–p75) resiste los errores de carga de la fuente">
+    <div
+      id="resultados"
+      data-supabase-url={supabaseUrl}
+      data-supabase-key={supabaseKey}
+    >
+      <p class="text-sm text-ink-soft">Cargando…</p>
+      <noscript><p class="text-sm text-ink-soft">El comparador necesita JavaScript.</p></noscript>
+    </div>
+  </Card>
+</Layout>
+
+<script>
+  import { int, uyu } from '../lib/format.js';
+  import { guardarBusquedaPrecios } from '../lib/busqueda.js';
+
+  interface Row {
+    classification_id: string;
+    producto: string;
+    unit_name: string | null;
+    items: number;
+    organismos: number;
+    proveedores: number;
+    min_precio: number | null;
+    p25: number | null;
+    mediana: number | null;
+    p75: number | null;
+    max_precio: number | null;
+  }
+
+  const POR_PAGINA = 50;
+
+  const cont = document.getElementById('resultados')!;
+  const form = document.getElementById('filtros') as HTMLFormElement;
+  const { supabaseUrl, supabaseKey } = cont.dataset;
+
+  const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+  async function pg(recurso: string, params: URLSearchParams, prefer?: string, signal?: AbortSignal) {
+    const headers: Record<string, string> = { apikey: supabaseKey! };
+    if (prefer) headers.Prefer = prefer;
+    const res = await fetch(`${supabaseUrl}/rest/v1/${recurso}?${params}`, { headers, signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res;
+  }
+
+  // ── Estado de la búsqueda ──────────────────────────────────────────────
+  interface Filtros {
+    q: string;
+    orden: string;
+    pagina: number;
+  }
+
+  const val = (n: string) => (form.elements.namedItem(n) as HTMLInputElement | HTMLSelectElement).value.trim();
+  const setVal = (n: string, v: string) => {
+    (form.elements.namedItem(n) as HTMLInputElement | HTMLSelectElement).value = v;
+  };
+
+  const leerFormulario = (pagina: number): Filtros => ({ q: val('q'), orden: val('orden'), pagina });
+
+  /** La URL es el estado: cada búsqueda queda compartible. */
+  function escribirUrl(f: Filtros) {
+    const p = new URLSearchParams();
+    if (f.q) p.set('q', f.q);
+    if (f.orden !== 'comprado') p.set('orden', f.orden);
+    if (f.pagina > 1) p.set('p', String(f.pagina));
+    const qs = p.toString();
+    history.replaceState(null, '', qs ? `?${qs}` : location.pathname);
+    guardarBusquedaPrecios(qs);
+  }
+
+  const ORDENES: Record<string, string> = {
+    comprado: 'items.desc',
+    organismos: 'organismos.desc',
+    caro: 'mediana.desc.nullslast',
+    barato: 'mediana.asc.nullslast',
+  };
+
+  function paramsPostgrest(f: Filtros): URLSearchParams {
+    const p = new URLSearchParams();
+    p.set(
+      'select',
+      'classification_id,producto,unit_name,items,organismos,proveedores,min_precio,p25,mediana,p75,max_precio',
+    );
+    if (f.q) p.set('busqueda', `wfts(es_unaccent).${f.q}`);
+    p.set('order', `${ORDENES[f.orden] ?? ORDENES.comprado},classification_id.asc`);
+    p.set('limit', String(POR_PAGINA));
+    p.set('offset', String((f.pagina - 1) * POR_PAGINA));
+    return p;
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────
+  const mensaje = (t: string) => {
+    cont.innerHTML = `<p class="text-sm text-ink-soft">${esc(t)}</p>`;
+  };
+
+  const filaProducto = (r: Row) => {
+    const unidad = (r.unit_name ?? '').toLowerCase() || '—';
+    const href = `/precios/${encodeURIComponent(r.classification_id)}?u=${encodeURIComponent(r.unit_name ?? '')}`;
+    const rango =
+      r.p25 != null && r.p75 != null ? `${uyu(r.p25)} – ${uyu(r.p75)}` : '—';
+    return `
+      <tr class="border-b border-line last:border-b-0">
+        <td class="max-w-[22rem] truncate py-2.5 pr-4" title="${esc(r.producto)}">
+          <a href="${href}" class="font-medium text-primary hover:underline">${esc(r.producto)}</a>
+        </td>
+        <td class="py-2.5 pr-4 whitespace-nowrap text-ink-soft">${esc(unidad)}</td>
+        <td class="num py-2.5 pr-4 text-right text-ink-soft">${int(r.organismos)}</td>
+        <td class="num py-2.5 pr-4 text-right text-ink-soft">${int(r.items)}</td>
+        <td class="num py-2.5 pr-4 text-right whitespace-nowrap font-medium">${uyu(r.mediana)}</td>
+        <td class="num py-2.5 whitespace-nowrap text-right text-ink-soft">${rango}</td>
+      </tr>`;
+  };
+
+  function render(rows: Row[], total: number, f: Filtros) {
+    if (!rows.length) {
+      mensaje('No encontramos productos con ese texto.');
+      return;
+    }
+    const paginas = Math.max(1, Math.ceil(total / POR_PAGINA));
+    const boton = (label: string, pagina: number, activo: boolean) =>
+      `<button type="button" data-pagina="${pagina}" ${activo ? '' : 'disabled'}
+        class="rounded-md border border-line px-3 py-1 text-sm ${activo ? 'text-primary hover:bg-primary-tint' : 'text-ink-faint'}">${label}</button>`;
+
+    cont.innerHTML = `
+      <p class="mb-3 text-sm text-ink-soft"><span class="num font-medium text-ink">${int(total)}</span> productos</p>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-line text-left text-xs text-ink-faint">
+              <th class="py-2 pr-4 font-medium">Producto</th>
+              <th class="py-2 pr-4 font-medium">Unidad</th>
+              <th class="py-2 pr-4 text-right font-medium">Organismos</th>
+              <th class="py-2 pr-4 text-right font-medium">Ítems</th>
+              <th class="py-2 pr-4 text-right font-medium">Mediana</th>
+              <th class="py-2 text-right font-medium">Rango habitual</th>
+            </tr>
+          </thead>
+          <tbody>${rows.map(filaProducto).join('')}</tbody>
+        </table>
+      </div>
+      <div class="mt-4 flex items-center justify-between gap-3">
+        ${boton('← Anterior', f.pagina - 1, f.pagina > 1)}
+        <span class="text-xs text-ink-faint">página ${int(f.pagina)} de ${int(paginas)}</span>
+        ${boton('Siguiente →', f.pagina + 1, f.pagina < paginas)}
+      </div>`;
+  }
+
+  // ── Búsqueda ───────────────────────────────────────────────────────────
+  let abortar: AbortController | undefined;
+
+  async function buscar(f: Filtros) {
+    abortar?.abort();
+    abortar = new AbortController();
+    const { signal } = abortar;
+    mensaje('Buscando…');
+    escribirUrl(f);
+    try {
+      const res = await pg('dash_productos', paramsPostgrest(f), 'count=exact', signal);
+      const rows = (await res.json()) as Row[];
+      const total = Number(res.headers.get('content-range')?.split('/')[1] ?? rows.length);
+      render(rows, total, f);
+      cont.scrollIntoView({ block: 'nearest' });
+    } catch (e) {
+      if (signal.aborted) return;
+      mensaje(`No pudimos buscar (${e instanceof Error ? e.message : e}). Probá de nuevo.`);
+    }
+  }
+
+  form.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    buscar(leerFormulario(1));
+  });
+
+  cont.addEventListener('click', (ev) => {
+    const btn = (ev.target as HTMLElement).closest('button[data-pagina]');
+    if (!btn) return;
+    buscar(leerFormulario(Number(btn.getAttribute('data-pagina'))));
+  });
+
+  // ── Arranque: la URL manda ─────────────────────────────────────────────
+  function iniciar() {
+    const u = new URLSearchParams(location.search);
+    setVal('q', u.get('q') ?? '');
+    setVal('orden', u.get('orden') ?? 'comprado');
+    buscar(leerFormulario(Math.max(1, Number(u.get('p') ?? 1) || 1)));
+  }
+
+  iniciar();
+</script>

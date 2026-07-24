@@ -93,10 +93,23 @@ Plan propuesto:
    vez por build en `src/lib/entidades.ts`; los ids raros de proveedores
    extranjeros se sanean con `slugEntidad`.
 
-4. **Comparador de precios unitarios**
-   Los ítems traen clasificación, cantidad, unidad y monto normalizado a pesos:
-   permite responder "¿cuánto pagó cada organismo por el mismo producto?".
-   Alto valor de transparencia/periodístico con datos que ya tenemos.
+4. **Comparador de precios unitarios** ✔ (2026-07-24)
+   `/precios` es un buscador de productos (client-side sobre la matview
+   `dash_productos`, misma arquitectura que /compras): buscás un rubro de ARCE
+   por texto full-text y ves, por (producto, unidad), cuántos organismos lo
+   compraron y el precio unitario típico (mediana + rango intercuartil p25–p75,
+   robusto a los errores de carga de la fuente). El detalle `/precios/{id}`
+   (página única client-side, rewrite en `_redirects`) consulta `award_items`
+   con embed `awards→purchases`, calcula todo en el navegador y muestra: KPIs,
+   histograma de precios, tabla **por organismo** y **por proveedor** (mediana
+   pagada, rango y desvío «vs. general»), y las compras individuales linkeadas.
+   El grano comparable es (producto, unidad) porque la unidad no es consistente
+   dentro de un rubro (servicios en HORA/MENSUAL/ANUAL); hay selector de unidad.
+   `amount_uyu` ya es el precio unitario en pesos. Enfoque híbrido de outliers:
+   los `monto_simbolico` se excluyen del agregado pero se muestran con aviso.
+   Reintento con backoff en las consultas (el embed 500ea a veces en frío en el
+   free tier). `pruebas-sitio.py` sección 9 lo blinda (medianas recomputadas
+   desde `award_items`).
 
 5. **Evolución temporal, alertas y export**
    Series mensuales por organismo/rubro, alertas de adjudicaciones grandes,

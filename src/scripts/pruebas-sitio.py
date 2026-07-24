@@ -442,6 +442,109 @@ check(
 )
 
 # ==============================================================================
+# 9. Comparador de precios (/precios): buscador + detalle
+# ==============================================================================
+def mediana_py(vals):
+    s = sorted(vals)
+    n = len(s)
+    if n == 0:
+        return None
+    pos = (n - 1) / 2
+    lo = int(pos)
+    frac = pos - lo
+    return s[lo] + frac * (s[lo + 1] - s[lo]) if lo + 1 < n else s[lo]
+
+
+simbolicas = {o["id_compra"] for o in outliers if o["tipo"] == "monto_simbolico"}
+
+
+def precios_producto(clase, unidad, excluir_simbolico=True):
+    """Ítems (precio, buyer, supplier) de un producto+unidad, como el detalle."""
+    items = db_todo(
+        "award_items",
+        select="amount_uyu,awards!inner(supplier_id,purchases!inner(id_compra,buyer_id))",
+        classification_id=f"eq.{clase}",
+        unit_name=f"eq.{unidad}",
+        amount_uyu="gt.0",
+        quantity="gt.0",
+        order="id",
+    )
+    filas = []
+    for it in items:
+        p = it["awards"]["purchases"]
+        if excluir_simbolico and p["id_compra"] in simbolicas:
+            continue
+        filas.append((it["amount_uyu"], p["buyer_id"], it["awards"]["supplier_id"]))
+    return filas
+
+
+# buscador: contador sin filtros == count(dash_productos)
+t_prec = texto(render("/precios/"))
+m_prec = re.search(r"([\d.]+) productos", t_prec)
+n_prod_base = db("dash_productos", count=True, select="classification_id")
+check(
+    "precios: contador sin filtros == count(dash_productos)",
+    m_prec is not None and num_es(m_prec.group(1)) == n_prod_base,
+    f"pagina={m_prec.group(1) if m_prec else None} base={n_prod_base}",
+)
+
+# buscador full-text 'toner' (página) == count con wfts (base)
+t_pft = texto(render("/precios/?q=toner"))
+m_pft = re.search(r"([\d.]+) productos", t_pft)
+n_pft_base = db("dash_productos", count=True, select="classification_id", busqueda="wfts(es_unaccent).toner")
+check(
+    "precios: full-text 'toner' (página) == base",
+    m_pft is not None and num_es(m_pft.group(1)) == n_pft_base,
+    f"pagina={m_pft.group(1) if m_pft else None} base={n_pft_base}",
+)
+
+
+def detalle_precios_mostrado(clase, unidad):
+    t = texto(render(f"/precios/{clase}?u={unidad}"))
+    m_med = re.search(r"Mediana \$ ([\d.]+)", t, re.I)
+    m_org = re.search(r"Organismos ([\d.]+) ([\d.]+) proveedores", t, re.I)
+    m_it = re.search(r"Ítems ([\d.]+) adjudicaciones", t, re.I)
+    return (
+        t,
+        num_es(m_med.group(1)) if m_med else None,
+        num_es(m_org.group(1)) if m_org else None,
+        num_es(m_it.group(1)) if m_it else None,
+    )
+
+
+# detalle 1880/UNIDAD (tóner, sin outliers): mediana / organismos / ítems vs recálculo
+filas = precios_producto("1880", "UNIDAD")
+med_base = round(mediana_py([p for p, _, _ in filas]))
+org_base = len({b for _, b, _ in filas if b})
+_, med_pag, org_pag, it_pag = detalle_precios_mostrado("1880", "UNIDAD")
+check(
+    "precios detalle 1880/UNIDAD: mediana página vs recálculo award_items",
+    med_pag is not None and abs(med_pag - med_base) <= 1,
+    f"pagina={med_pag} base={med_base}",
+)
+check(
+    "precios detalle 1880/UNIDAD: organismos e ítems vs recálculo",
+    org_pag == org_base and it_pag == len(filas),
+    f"pagina=({org_pag} org, {it_pag} items) base=({org_base} org, {len(filas)} items)",
+)
+
+# detalle 68562/UNIDAD (OSE): el ítem simbólico ($12) queda FUERA del agregado
+filas68 = precios_producto("68562", "UNIDAD")  # sin el simbólico
+con_simb = precios_producto("68562", "UNIDAD", excluir_simbolico=False)
+_, med68_pag, _, it68_pag = detalle_precios_mostrado("68562", "UNIDAD")
+med68_base = round(mediana_py([p for p, _, _ in filas68]))
+check(
+    "precios detalle 68562/UNIDAD: mediana excluye el monto simbólico",
+    med68_pag is not None and abs(med68_pag - med68_base) <= 1 and len(con_simb) > len(filas68),
+    f"pagina={med68_pag} base_sin_simb={med68_base} (n {len(con_simb)}->{len(filas68)})",
+)
+check(
+    "precios detalle 68562/UNIDAD: ítems del agregado excluyen el simbólico",
+    it68_pag == len(filas68),
+    f"pagina={it68_pag} base={len(filas68)}",
+)
+
+# ==============================================================================
 print()
 fallas = [r for r in resultados if not r[1]]
 print(f"== {len(resultados) - len(fallas)}/{len(resultados)} pruebas OK ==")

@@ -4,3 +4,4 @@
 # segmento más, no vacío).
 /compras/:id /compras/detalle/ 200
 /proveedores/:id /proveedores/detalle/ 200
+/precios/:id /precios/detalle/ 200

@@ -1,0 +1,458 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+// Detalle del comparador de precios: para un producto (clasificación de ARCE)
+// muestra cuánto pagó cada organismo por la misma unidad. Página única
+// client-side (como la ficha de proveedor y el detalle de compra): los ítems
+// se traen de award_items con embeds a awards→purchases; las URLs
+// /precios/{classification_id}?u={unidad} llegan acá vía public/_redirects
+// (rewrite 200; en dev lo replica el middleware). Publishable key de solo
+// lectura por RLS. El precio comparable es por (producto, unidad).
+const supabaseUrl = import.meta.env.SUPABASE_URL as string;
+const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
+---
+
+<Layout title="Comparador de precios">
+  <div
+    id="detalle"
+    class="col-span-12 grid grid-cols-12 gap-6"
+    data-supabase-url={supabaseUrl}
+    data-supabase-key={supabaseKey}
+  >
+    <div class="col-span-12">
+      <a href="${urlVolverPrecios()}" class="text-sm font-medium text-primary hover:underline">← Precios</a>
+      <p class="mt-2 text-sm text-ink-soft">Cargando producto…</p>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  import { int, uyu, cant, pct, fecha } from '../../lib/format.js';
+  import { slugEntidad } from '../../lib/slug.js';
+  import { nombreOrganismo } from '../../lib/incisos.js';
+  import { urlVolverPrecios } from '../../lib/busqueda.js';
+
+  interface Item {
+    precio: number;
+    cantidad: number | null;
+    supplier_id: string | null;
+    buyer_id: string | null;
+    id_compra: number | null;
+    fecha: string | null;
+    simbolico: boolean; // outlier monto_simbolico: precio unitario falso
+  }
+  interface Unidad {
+    unit_name: string;
+    producto: string;
+    items: number;
+    organismos: number;
+  }
+  interface Agregado {
+    id: string;
+    n: number;
+    mediana: number;
+    min: number;
+    max: number;
+  }
+
+  const TOP = 20; // filas por organismo / proveedor
+  const TOP_ITEMS = 50; // compras individuales
+  const PAGINA = 1000; // tope top-level de PostgREST
+
+  const cont = document.getElementById('detalle')!;
+  const { supabaseUrl, supabaseKey } = cont.dataset;
+
+  const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+  const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  // La consulta de ítems arma un embed award_items→awards→purchases pesado y
+  // el free tier de Supabase 500ea de vez en cuando en frío (no es timeout:
+  // falla en ~3s). Reintentamos con backoff ante 5xx / error de red, como en
+  // la llamada al BCU del pipeline.
+  async function pedir<T>(recurso: string, params: URLSearchParams): Promise<T> {
+    let ultimo: unknown;
+    for (let intento = 0; intento < 3; intento++) {
+      if (intento) await dormir(300 * 2 ** (intento - 1));
+      try {
+        const res = await fetch(`${supabaseUrl}/rest/v1/${recurso}?${params}`, {
+          headers: { apikey: supabaseKey! },
+        });
+        if (res.ok) return (await res.json()) as T;
+        if (res.status < 500) throw new Error(`HTTP ${res.status}`);
+        ultimo = new Error(`HTTP ${res.status}`);
+      } catch (e) {
+        ultimo = e;
+      }
+    }
+    throw ultimo instanceof Error ? ultimo : new Error(String(ultimo));
+  }
+
+  const enLista = (valores: string[]) => `in.(${valores.map((v) => `"${v}"`).join(',')})`;
+
+  /** /precios/{id} (rewrite) o ?id= (dev local, sin rewrites). */
+  function claseDeUrl(): string | null {
+    const m = location.pathname.match(/\/precios\/([^/]+)\/?$/);
+    const id =
+      m && m[1] !== 'detalle'
+        ? decodeURIComponent(m[1])
+        : new URLSearchParams(location.search).get('id');
+    return id && /^[\w.~-]+$/.test(id) ? id : null;
+  }
+
+  // ── Estadística ────────────────────────────────────────────────────────
+  /** Percentil con interpolación lineal sobre un array YA ordenado asc. */
+  function percentil(orden: number[], q: number): number {
+    if (!orden.length) return NaN;
+    const pos = (orden.length - 1) * q;
+    const base = Math.floor(pos);
+    const resto = pos - base;
+    return orden[base + 1] !== undefined
+      ? orden[base] + resto * (orden[base + 1] - orden[base])
+      : orden[base];
+  }
+  const mediana = (orden: number[]) => percentil(orden, 0.5);
+
+  function agregarPor(items: Item[], clave: (i: Item) => string | null): Agregado[] {
+    const grupos = new Map<string, number[]>();
+    for (const it of items) {
+      const k = clave(it);
+      if (!k) continue;
+      (grupos.get(k) ?? grupos.set(k, []).get(k)!).push(it.precio);
+    }
+    return [...grupos.entries()]
+      .map(([id, precios]) => {
+        precios.sort((a, b) => a - b);
+        return { id, n: precios.length, mediana: mediana(precios), min: precios[0], max: precios[precios.length - 1] };
+      })
+      .sort((a, b) => b.n - a.n);
+  }
+
+  // ── Componentes de HTML ──────────────────────────────────────────────────
+  function mensaje(texto: string) {
+    cont.innerHTML = `
+      <div class="col-span-12">
+        <a href="${urlVolverPrecios()}" class="text-sm font-medium text-primary hover:underline">← Precios</a>
+        <p class="mt-2 text-sm text-ink-soft">${esc(texto)}</p>
+      </div>`;
+  }
+
+  const kpi = (label: string, value: string, sub: string) => `
+    <div class="rounded-lg border border-line bg-surface px-6 py-5 col-span-6 sm:col-span-3">
+      <p class="text-xs font-medium tracking-wide text-ink-soft uppercase">${esc(label)}</p>
+      <p class="num mt-2 text-2xl font-medium text-ink">${esc(value)}</p>
+      <p class="mt-1 text-xs text-ink-faint">${esc(sub)}</p>
+    </div>`;
+
+  const card = (title: string, sub: string, cuerpo: string, cls = 'col-span-12') => `
+    <section class="rounded-lg border border-line bg-surface p-6 ${cls}">
+      <header class="mb-5">
+        <h2 class="text-sm font-semibold text-ink">${esc(title)}</h2>
+        <p class="mt-0.5 text-xs text-ink-faint">${esc(sub)}</p>
+      </header>
+      ${cuerpo}
+    </section>`;
+
+  /** Histograma horizontal (client-side) sobre [p5, p95]; marca la mediana. */
+  function histograma(precios: number[], med: number): string {
+    if (precios.length < 8) return '';
+    const lo = percentil(precios, 0.05);
+    const hi = percentil(precios, 0.95);
+    if (!(hi > lo)) return '';
+    const N = 24;
+    const cubos = new Array(N).fill(0);
+    let fuera = 0;
+    for (const p of precios) {
+      if (p < lo || p > hi) { fuera++; continue; }
+      const idx = Math.min(N - 1, Math.floor(((p - lo) / (hi - lo)) * N));
+      cubos[idx]++;
+    }
+    const maxC = Math.max(...cubos, 1);
+    const medFrac = med >= lo && med <= hi ? ((med - lo) / (hi - lo)) * 100 : null;
+    const barras = cubos
+      .map(
+        (c) =>
+          `<div class="flex-1 bg-primary/70" style="height:${(c / maxC) * 100}%" title="${c} ítems"></div>`,
+      )
+      .join('');
+    const lineaMediana =
+      medFrac != null
+        ? `<div class="absolute top-0 bottom-0 w-px bg-flag-warn" style="left:${medFrac}%"></div>`
+        : '';
+    const nota = fuera
+      ? `<p class="mt-1 text-xs text-ink-faint">${int(fuera)} ítems fuera de escala (por debajo de ${uyu(lo)} o por encima de ${uyu(hi)})</p>`
+      : '';
+    return `
+      <div class="relative flex h-24 items-end gap-px">${barras}${lineaMediana}</div>
+      <div class="mt-1 flex justify-between text-xs text-ink-faint">
+        <span class="num">${uyu(lo)}</span>
+        <span>distribución del precio unitario · la línea es la mediana</span>
+        <span class="num">${uyu(hi)}</span>
+      </div>
+      ${nota}`;
+  }
+
+  const relativo = (m: number, base: number) => {
+    if (!base || !isFinite(m)) return '<span class="text-ink-faint">—</span>';
+    const d = (m - base) / base;
+    if (Math.abs(d) < 0.005) return '<span class="text-ink-faint">≈ mediana</span>';
+    const signo = d > 0 ? '+' : '−';
+    const color = d > 0 ? 'text-flag-warn' : 'text-ink-soft';
+    return `<span class="${color}">${signo}${pct(Math.abs(d)).replace(' %', '%')}</span>`;
+  };
+
+  function tablaAgregado(
+    titulo: string,
+    sub: string,
+    filas: Agregado[],
+    nombre: (id: string) => string,
+    href: (id: string) => string,
+    colEntidad: string,
+    med: number,
+  ): string {
+    const top = filas.slice(0, TOP);
+    const cuerpo = top
+      .map((f) => {
+        const nom = nombre(f.id);
+        return `
+        <tr class="border-b border-line last:border-b-0">
+          <td class="max-w-[22rem] truncate py-2.5 pr-4" title="${esc(nom)}">
+            <a href="${href(f.id)}" class="hover:underline">${esc(nom)}</a>
+          </td>
+          <td class="num py-2.5 pr-4 text-right text-ink-soft">${int(f.n)}</td>
+          <td class="num py-2.5 pr-4 text-right whitespace-nowrap font-medium">${uyu(f.mediana)}</td>
+          <td class="num py-2.5 pr-4 text-right whitespace-nowrap text-ink-soft">${uyu(f.min)} – ${uyu(f.max)}</td>
+          <td class="num py-2.5 text-right whitespace-nowrap">${relativo(f.mediana, med)}</td>
+        </tr>`;
+      })
+      .join('');
+    return card(
+      titulo,
+      sub,
+      `<div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-line text-left text-xs text-ink-faint">
+              <th class="py-2 pr-4 font-medium">${esc(colEntidad)}</th>
+              <th class="py-2 pr-4 text-right font-medium">Ítems</th>
+              <th class="py-2 pr-4 text-right font-medium">Mediana pagada</th>
+              <th class="py-2 pr-4 text-right font-medium">Rango</th>
+              <th class="py-2 text-right font-medium">vs. general</th>
+            </tr>
+          </thead>
+          <tbody>${cuerpo}</tbody>
+        </table>
+      </div>`,
+    );
+  }
+
+  // ── Carga ────────────────────────────────────────────────────────────────
+  let unidadesGlobal: Unidad[] = [];
+  let idClaseGlobal = '';
+
+  async function itemsDe(idClase: string, unidad: string, simbolicas: Set<number>): Promise<Item[]> {
+    const filas: Item[] = [];
+    for (let desde = 0; ; desde += PAGINA) {
+      const pagina = await pedir<any[]>(
+        'award_items',
+        new URLSearchParams({
+          select:
+            'amount_uyu,quantity,awards!inner(supplier_id,award_date,purchases!inner(id_compra,buyer_id))',
+          classification_id: `eq.${idClase}`,
+          unit_name: `eq.${unidad}`,
+          amount_uyu: 'gt.0',
+          quantity: 'gt.0',
+          order: 'id',
+          limit: String(PAGINA),
+          offset: String(desde),
+        }),
+      );
+      for (const r of pagina) {
+        const a = r.awards ?? {};
+        const p = a.purchases ?? {};
+        filas.push({
+          precio: r.amount_uyu,
+          cantidad: r.quantity,
+          supplier_id: a.supplier_id ?? null,
+          buyer_id: p.buyer_id ?? null,
+          id_compra: p.id_compra ?? null,
+          fecha: a.award_date ?? null,
+          simbolico: p.id_compra != null && simbolicas.has(p.id_compra),
+        });
+      }
+      if (pagina.length < PAGINA || desde > PAGINA * 30) break;
+    }
+    return filas;
+  }
+
+  function renderCabecera(activa: string) {
+    const producto = unidadesGlobal[0]?.producto ?? 'Producto';
+    document.title = `${producto} · Precios · Compras del Estado`;
+    const opciones = unidadesGlobal
+      .map(
+        (u) =>
+          `<option value="${esc(u.unit_name)}" ${u.unit_name === activa ? 'selected' : ''}>${esc(u.unit_name.toLowerCase())} · ${int(u.items)} ítems</option>`,
+      )
+      .join('');
+    const selector =
+      unidadesGlobal.length > 1
+        ? `<label class="mt-3 flex items-center gap-2 text-sm text-ink-soft">
+             Unidad
+             <select id="sel-unidad" class="rounded-md border border-line bg-surface px-2 py-1 text-sm text-ink focus:border-primary focus:outline-none">${opciones}</select>
+           </label>`
+        : `<p class="mt-1 text-sm text-ink-soft">unidad: ${esc(activa.toLowerCase())}</p>`;
+    return `
+      <div class="col-span-12">
+        <a href="${urlVolverPrecios()}" class="text-sm font-medium text-primary hover:underline">← Precios</a>
+        <h1 class="mt-2 text-xl font-semibold tracking-tight">${esc(producto)}</h1>
+        <p class="mt-1 text-sm text-ink-soft">rubro ${esc(idClaseGlobal)} · precio unitario en pesos</p>
+        ${selector}
+      </div>
+      <div id="unidad-contenido" class="col-span-12 grid grid-cols-12 gap-6">
+        <p class="col-span-12 text-sm text-ink-soft">Cargando ítems…</p>
+      </div>`;
+  }
+
+  async function cargarUnidad(unidad: string) {
+    history.replaceState(null, '', `${location.pathname}?u=${encodeURIComponent(unidad)}`);
+    const destino = document.getElementById('unidad-contenido')!;
+    destino.innerHTML = '<p class="col-span-12 text-sm text-ink-soft">Cargando ítems…</p>';
+
+    // Outliers de precio unitario falso (monto_simbolico): se excluyen de los
+    // agregados pero el ítem individual se muestra con aviso (enfoque híbrido).
+    const outliers = await pedir<{ id_compra: number }[]>(
+      'outliers',
+      new URLSearchParams({ select: 'id_compra', tipo: 'eq.monto_simbolico' }),
+    );
+    const simbolicas = new Set(outliers.map((o) => o.id_compra));
+
+    const items = await itemsDe(idClaseGlobal, unidad, simbolicas);
+    if (!items.length) {
+      destino.innerHTML = '<p class="col-span-12 text-sm text-ink-soft">Sin ítems con precio para esta unidad.</p>';
+      return;
+    }
+
+    const paraStats = items.filter((i) => !i.simbolico);
+    const precios = paraStats.map((i) => i.precio).sort((a, b) => a - b);
+    const med = mediana(precios);
+    const p25 = percentil(precios, 0.25);
+    const p75 = percentil(precios, 0.75);
+
+    const porOrg = agregarPor(paraStats, (i) => i.buyer_id);
+    const porProv = agregarPor(paraStats, (i) => i.supplier_id);
+
+    // Nombres solo de lo que se muestra.
+    const idsOrg = porOrg.slice(0, TOP).map((a) => a.id);
+    const idsProv = porProv.slice(0, TOP).map((a) => a.id);
+    const idsItems = [
+      ...new Set(
+        [...items]
+          .sort((a, b) => b.precio - a.precio)
+          .slice(0, TOP_ITEMS)
+          .flatMap((i) => [i.buyer_id, i.supplier_id])
+          .filter((x): x is string => !!x),
+      ),
+    ];
+    const idsNombres = [...new Set([...idsOrg, ...idsProv, ...idsItems])];
+    const nombres = idsNombres.length
+      ? await pedir<{ id: string; name: string }[]>(
+          'entities',
+          new URLSearchParams({ select: 'id,name', id: enLista(idsNombres) }),
+        )
+      : [];
+    const nombrePorId = new Map(nombres.map((e) => [e.id, e.name]));
+    const nombreOrg = (id: string) => nombreOrganismo(nombrePorId.get(id) ?? id, id);
+    const nombreProv = (id: string) => nombrePorId.get(id) ?? id;
+
+    // Compras individuales (las más caras primero), con aviso de outlier.
+    const filasItems = [...items]
+      .sort((a, b) => b.precio - a.precio)
+      .slice(0, TOP_ITEMS)
+      .map((i) => {
+        const badge = i.simbolico
+          ? `<span class="ml-1 cursor-help text-flag-warn" title="Monto simbólico en la fuente; no representa el precio real" aria-label="monto simbólico">⚠</span>`
+          : '';
+        const compra =
+          i.id_compra != null
+            ? `<a href="/compras/${i.id_compra}" class="font-medium text-primary hover:underline">${i.id_compra}</a>`
+            : '—';
+        return `
+        <tr class="border-b border-line last:border-b-0">
+          <td class="num py-2.5 pr-4 whitespace-nowrap">${compra}</td>
+          <td class="max-w-[16rem] truncate py-2.5 pr-4 text-ink-soft" title="${esc(i.buyer_id ? nombreOrg(i.buyer_id) : '')}">${i.buyer_id ? esc(nombreOrg(i.buyer_id)) : '—'}</td>
+          <td class="max-w-[16rem] truncate py-2.5 pr-4 text-ink-soft" title="${esc(i.supplier_id ? nombreProv(i.supplier_id) : '')}">${i.supplier_id ? esc(nombreProv(i.supplier_id)) : '—'}</td>
+          <td class="num py-2.5 pr-4 text-right text-ink-soft">${cant(i.cantidad)}</td>
+          <td class="num py-2.5 pr-4 text-right whitespace-nowrap font-medium">${uyu(i.precio)}${badge}</td>
+          <td class="num py-2.5 text-right whitespace-nowrap text-ink-soft">${fecha(i.fecha)}</td>
+        </tr>`;
+      })
+      .join('');
+
+    const cardItems = card(
+      'Compras individuales',
+      `las ${Math.min(TOP_ITEMS, items.length)} de mayor precio unitario, de ${int(items.length)} ítems`,
+      `<div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-line text-left text-xs text-ink-faint">
+              <th class="py-2 pr-4 font-medium">Compra</th>
+              <th class="py-2 pr-4 font-medium">Organismo</th>
+              <th class="py-2 pr-4 font-medium">Proveedor</th>
+              <th class="py-2 pr-4 text-right font-medium">Cantidad</th>
+              <th class="py-2 pr-4 text-right font-medium">Precio unit.</th>
+              <th class="py-2 text-right font-medium">Fecha</th>
+            </tr>
+          </thead>
+          <tbody>${filasItems}</tbody>
+        </table>
+      </div>`,
+    );
+
+    destino.innerHTML = `
+      ${kpi('Mediana', uyu(med), 'precio unitario típico')}
+      ${kpi('Rango habitual', `${uyu(p25)}–${uyu(p75)}`, 'p25 a p75 (intercuartil)')}
+      ${kpi('Organismos', int(porOrg.length), `${int(porProv.length)} proveedores`)}
+      ${kpi('Ítems', int(paraStats.length), 'adjudicaciones comparadas')}
+      ${card('Distribución de precios', 'cuánto se pagó por unidad; los extremos suelen ser errores de carga o presentaciones distintas', histograma(precios, med) || '<p class="text-sm text-ink-soft">Pocos ítems para un histograma.</p>')}
+      ${tablaAgregado('Por organismo', `qué pagó cada organismo · top ${Math.min(TOP, porOrg.length)} de ${int(porOrg.length)} por nº de ítems`, porOrg, nombreOrg, (id) => `/organismos/${slugEntidad(id)}`, 'Organismo', med)}
+      ${tablaAgregado('Por proveedor', `a qué precio vendió cada proveedor · top ${Math.min(TOP, porProv.length)} de ${int(porProv.length)}`, porProv, nombreProv, (id) => `/proveedores/${slugEntidad(id)}`, 'Proveedor', med)}
+      ${cardItems}`;
+  }
+
+  async function cargar() {
+    const idClase = claseDeUrl();
+    if (!idClase) {
+      mensaje('Falta el identificador del producto en la URL.');
+      return;
+    }
+    idClaseGlobal = idClase;
+    try {
+      unidadesGlobal = await pedir<Unidad[]>(
+        'dash_productos',
+        new URLSearchParams({
+          select: 'unit_name,producto,items,organismos',
+          classification_id: `eq.${idClase}`,
+          order: 'items.desc',
+        }),
+      );
+      if (!unidadesGlobal.length) {
+        mensaje('No encontramos este producto, o no tiene suficientes compras para comparar.');
+        return;
+      }
+      const pedida = new URLSearchParams(location.search).get('u');
+      const activa =
+        (pedida && unidadesGlobal.find((u) => u.unit_name === pedida)?.unit_name) ??
+        unidadesGlobal[0].unit_name;
+
+      cont.innerHTML = renderCabecera(activa);
+      document.getElementById('sel-unidad')?.addEventListener('change', (ev) => {
+        cargarUnidad((ev.target as HTMLSelectElement).value);
+      });
+      await cargarUnidad(activa);
+    } catch (e) {
+      mensaje(`No pudimos cargar el producto (${e instanceof Error ? e.message : e}). Probá recargar.`);
+    }
+  }
+
+  cargar();
+</script>

@@ -11,5 +11,8 @@ export const onRequest = defineMiddleware((context, next) => {
   if (/^\/proveedores\/(?!detalle\/?$)[^/]+\/?$/.test(pathname)) {
     return context.rewrite('/proveedores/detalle/');
   }
+  if (/^\/precios\/(?!detalle\/?$)[^/]+\/?$/.test(pathname)) {
+    return context.rewrite('/precios/detalle/');
+  }
   return next();
 });
