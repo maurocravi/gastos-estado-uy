@@ -1,10 +1,11 @@
 import pLimit from 'p-limit';
 import { config } from './config.js';
 import { fetchMonthlyReleaseList, fetchRelease } from './ocds.js';
-import { Accumulator } from './transform.js';
+import { Accumulator, mergePurchase } from './transform.js';
 import {
   upsertRows,
   insertRows,
+  selectPurchases,
   deleteAwardsForOcids,
   type ReleaseRow,
   type AwardRow,
@@ -125,7 +126,13 @@ async function main() {
   // 4. Escribir a Supabase en orden de dependencias (FKs)
   console.log('\n  Escribiendo...');
   await upsertRows('entities', [...acc.entities.values()], 'id');
-  await upsertRows('purchases', [...acc.purchases.values()], 'ocid');
+
+  // El upsert reescribe la fila entera, así que antes mergeamos con lo que ya
+  // hay en la base: si no, un release de adjudicación (que no trae título ni
+  // descripción del llamado) los borra.
+  const guardadas = await selectPurchases([...acc.purchases.keys()]);
+  const purchaseRows = [...acc.purchases.values()].map((p) => mergePurchase(p, guardadas.get(p.ocid)));
+  await upsertRows('purchases', purchaseRows, 'ocid');
 
   // Re-ejecutable: borramos adjudicaciones de los ocids de esta corrida y reinsertamos
   await deleteAwardsForOcids([...awardOcids]);

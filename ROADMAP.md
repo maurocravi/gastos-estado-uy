@@ -111,11 +111,35 @@ Plan propuesto:
    free tier). `pruebas-sitio.py` sección 9 lo blinda (medianas recomputadas
    desde `award_items`).
 
-5. **Evolución temporal, alertas y export**
+5. **Descripción del llamado en el detalle** ✔ (2026-07-25)
+   `tender.description` del release de llamado: el texto libre donde el
+   organismo dice en palabras qué compra ("Arrendamiento de vehículo 4x4 para
+   uso del Laboratorio Regional de Treinta y Tres..."), que ARCE muestra bajo
+   el título y nosotros ignorábamos. Nueva columna `purchases.tender_description`,
+   poblada por `transform.ts` y backfilleada desde los releases guardados
+   (`npm run backfill-purchases`, lee `archivo/*.ndjson.gz` + `releases.raw`).
+   Cobertura 43.240 de 129.759 compras (33%: solo la traen los llamados, igual
+   que el título). Se muestra bajo el encabezado del detalle.
+
+   De paso se arregló el bug **cross-corrida** que la habría borrado sola: el
+   upsert de `purchases` reescribe la fila entera y los releases de
+   adjudicación no traen `tender.title` ni `tender.description`, así que cada
+   corrida del cron los dejaba en null (así había perdido el título la compra
+   1325850). `ingest.ts` ahora mergea contra lo que ya está en la base
+   (`mergePurchase`: más reciente gana, null nunca pisa) y el backfill
+   recuperó 1.731 títulos perdidos. Esto vuelve innecesario el viejo backfill
+   SQL de títulos al ingerir historia.
+
+   Pendiente (mejora): sumar la descripción al tsvector `busqueda` de
+   `dash_compras` — hoy el buscador indexa título + organismo + ítems, y este
+   texto es lo más descriptivo que hay. Implica recrear la matview (69 MB) y
+   por ahora la base está justa de espacio.
+
+6. **Evolución temporal, alertas y export**
    Series mensuales por organismo/rubro, alertas de adjudicaciones grandes,
    export CSV. Con 2025+2026 cargados ya hay dos años comparables.
 
-6. **Flag de outliers de la fuente** ✔ (2026-07-23)
+7. **Flag de outliers de la fuente** ✔ (2026-07-23)
    Tabla curada `outliers` (`id_compra`, `tipo`, `nota`; RLS de lectura
    pública) con tres tipos. Enfoque **híbrido**, el estándar de la disciplina
    (winsorizing con disclosure): a nivel de registro individual se muestra el

@@ -86,6 +86,25 @@ paso 2. La fórmula es `amount_uyu = amount * rate(currency, fecha)` (UYU = 1) y
 `amount_usd = amount_uyu / rate('USD', fecha)`. Si una moneda no tiene cotización
 disponible, el item se deja en `null` y se reporta al final.
 
+## Backfill de título y descripción de compras
+
+`purchases.tender_title` y `purchases.tender_description` vienen **solo** en el
+release de llamado. Este script los recalcula desde todos los releases que
+tenemos guardados —los `.ndjson.gz` de `archivo/` más los `releases.raw` que
+siguen en la base— y escribe lo que falte o esté desactualizado (nunca pisa con
+null).
+
+```bash
+npm run backfill-purchases -- --dry   # solo reporta
+npm run backfill-purchases            # escribe
+```
+
+Sirve tras ingerir historia, o si alguna corrida vieja pisó los campos. La
+ingesta ya no los pierde por sí sola (`mergePurchase` en `transform.ts` mergea
+contra la fila que está en la base antes del upsert), así que en el uso normal
+no hace falta. Después conviene `select refresh_dash();` porque `dash_compras`
+usa el título.
+
 ## Type-check
 
 ```bash

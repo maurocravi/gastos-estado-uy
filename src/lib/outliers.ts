@@ -2,7 +2,7 @@
 // mano). No son bugs del pipeline: coinciden con la ficha oficial de ARCE.
 // Solo 'monto_inflado' se excluye de totales y rankings (las vistas dash_*
 // ponen su total en NULL); los demás tipos solo muestran un aviso. La compra
-// nunca se oculta. Ver ROADMAP punto 6.
+// nunca se oculta. Ver ROADMAP punto 7.
 
 export type TipoOutlier = 'monto_inflado' | 'monto_simbolico' | 'fecha';
 

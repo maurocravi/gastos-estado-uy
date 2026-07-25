@@ -15,6 +15,7 @@
     "normalize": "tsx src/scripts/normalize.ts",
     "repair": "tsx src/scripts/repair-awards.ts",
     "archivar": "tsx src/scripts/archivar-raw.ts",
+    "backfill-purchases": "tsx src/scripts/backfill-purchases.ts",
     "typecheck": "astro check"
   },
   "dependencies": {

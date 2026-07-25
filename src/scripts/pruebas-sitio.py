@@ -12,6 +12,7 @@ tres compras fijas de 2026 (1074933, 1347791, 1023673).
 """
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -19,11 +20,11 @@ import time
 import urllib.parse
 import urllib.request
 
-SITIO = "https://gastos-estado-uy.pages.dev"
+# SITIO=http://localhost:4321 para probar un cambio antes de desplegarlo.
+SITIO = os.environ.get("SITIO", "https://gastos-estado-uy.pages.dev")
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 # --- credenciales desde .env -------------------------------------------------
-import os
 ENV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".env")
 env = {}
 for linea in open(ENV):
@@ -217,6 +218,23 @@ check(
 # compra inexistente e id inválido
 t = texto(render("/compras/99999999"))
 check("detalle inexistente: mensaje 'no encontramos'", "No encontramos la compra" in t)
+
+# descripción del llamado (tender.description): solo la traen los llamados, así
+# que la mostramos cuando está y la página no debe romperse cuando falta.
+desc = db("purchases", select="tender_description", id_compra="eq.1325850")[0]["tender_description"]
+t = texto(render("/compras/1325850"))
+check(
+    "detalle 1325850: muestra la descripción del llamado",
+    desc is not None and re.sub(r"\s+", " ", desc).strip() in t,
+    f"base={(desc or '')[:60]}…",
+)
+sin_desc = db("purchases", select="id_compra", tender_description="is.null", limit=1)[0]["id_compra"]
+t = texto(render(f"/compras/{sin_desc}"))
+check(
+    f"detalle {sin_desc} (sin descripción): la página igual carga",
+    f"compra {sin_desc} ·" in t,
+    t[:120],
+)
 
 # ==============================================================================
 # 3. Consistencia global de vistas (dash_kpis vs conteos y sumas reales)

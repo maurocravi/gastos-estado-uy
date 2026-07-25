@@ -22,6 +22,7 @@ export interface PurchaseRow {
   id_compra: number | null;
   buyer_id: string | null;
   tender_title: string | null;
+  tender_description: string | null;
   status: string | null;
   last_updated: string | null;
 }
@@ -75,6 +76,22 @@ export async function upsertRows<T extends object>(
     const { error } = await supabase.from(table).upsert(part, { onConflict });
     if (error) throw new Error(`upsert ${table}: ${error.message}`);
   }
+}
+
+/** Compras ya guardadas para esos ocids, por ocid (para el merge cross-corrida). */
+export async function selectPurchases(ocids: string[]): Promise<Map<string, PurchaseRow>> {
+  const out = new Map<string, PurchaseRow>();
+  // Lotes por debajo del tope de 1000 filas por request de PostgREST: como
+  // ocid es PK, cada lote devuelve como mucho una fila por ocid pedido.
+  for (const part of chunk(ocids, config.dbChunkSize)) {
+    const { data, error } = await supabase
+      .from('purchases')
+      .select('ocid, id_compra, buyer_id, tender_title, tender_description, status, last_updated')
+      .in('ocid', part);
+    if (error) throw new Error(`leer purchases: ${error.message}`);
+    for (const row of (data ?? []) as PurchaseRow[]) out.set(row.ocid, row);
+  }
+  return out;
 }
 
 export async function insertRows<T extends object>(table: string, rows: T[]): Promise<void> {

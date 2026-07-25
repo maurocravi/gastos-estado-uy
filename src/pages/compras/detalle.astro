@@ -53,6 +53,7 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
     ocid: string;
     id_compra: number;
     tender_title: string | null;
+    tender_description: string | null;
     status: string | null;
     first_seen: string;
     last_updated: string;
@@ -129,6 +130,13 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
       .map((i) => i.description ?? i.classification_desc)
       .find((d) => d != null);
     const objeto = compra.tender_title ?? itemPrincipal ?? null;
+
+    // Descripción del llamado: texto libre que escribe el organismo, lo único
+    // que dice en palabras QUÉ se compró (el título es "Tipo N/AAAA"). ARCE la
+    // muestra bajo el título; acá va en el mismo lugar. Solo la traen los
+    // releases de llamado: la tiene ~1 de cada 3 compras, y siempre junto al
+    // título, así que nunca duplica el h1.
+    const descripcion = compra.tender_description;
 
     const urlArce = `https://www.comprasestatales.gub.uy/consultas/detalle/mostrar-llamado/1/id/${compra.id_compra}`;
 
@@ -222,6 +230,11 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
         ${linkVolver()}
         <h1 class="mt-2 text-xl font-semibold tracking-tight">${esc(titulo(objeto, 140))}</h1>
         <p class="mt-1 text-sm text-ink-soft">compra ${compra.id_compra} · ${linkBuyer}</p>
+        ${
+          descripcion
+            ? `<p class="mt-4 max-w-3xl border-l-2 border-line pl-4 text-sm leading-relaxed text-ink-soft">${esc(descripcion)}</p>`
+            : ''
+        }
       </div>
       ${aviso}
       ${kpi('Adjudicado', uyu(adjudicaciones.length ? totalCompra : null), 'pesos uruguayos, montos normalizados')}
@@ -251,7 +264,7 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
     }
 
     const { supabaseUrl, supabaseKey } = cont.dataset;
-    const select = `ocid,id_compra,tender_title,status,first_seen,last_updated,buyer:entities!purchases_buyer_id_fkey(id,name),awards(award_id,status,award_date,notice_url,supplier:entities!awards_supplier_id_fkey(id,name),items:award_items(description,classification_id,classification_desc,quantity,unit_name,amount,currency,amount_uyu))`;
+    const select = `ocid,id_compra,tender_title,tender_description,status,first_seen,last_updated,buyer:entities!purchases_buyer_id_fkey(id,name),awards(award_id,status,award_date,notice_url,supplier:entities!awards_supplier_id_fkey(id,name),items:award_items(description,classification_id,classification_desc,quantity,unit_name,amount,currency,amount_uyu))`;
     const params = new URLSearchParams({ select, id_compra: `eq.${id}` });
 
     const paramsOutlier = new URLSearchParams({ select: 'tipo,nota', id_compra: `eq.${id}` });

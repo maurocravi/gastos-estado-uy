@@ -48,7 +48,7 @@ export interface OcdsRelease {
   tag?: string[];
   buyer?: { id?: string; name?: string };
   parties?: OcdsParty[];
-  tender?: { title?: string; status?: string };
+  tender?: { title?: string; description?: string; status?: string };
   awards?: OcdsAward[];
 }
 
