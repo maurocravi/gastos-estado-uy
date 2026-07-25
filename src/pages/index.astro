@@ -164,14 +164,14 @@ const periodo = `datos publicados desde enero 2025 · última adjudicación ${fe
                 </td>
                 <td
                   class="max-w-[26rem] truncate py-2.5 pr-4"
-                  title={c.tender_title ?? c.item_principal ?? undefined}
+                  title={c.item_principal ?? c.tender_title ?? undefined}
                 >
                   {c.id_compra != null ? (
                     <a href={`/compras/${c.id_compra}`} class="hover:underline">
-                      {titulo(c.tender_title ?? c.item_principal)}
+                      {titulo(c.item_principal ?? c.tender_title)}
                     </a>
                   ) : (
-                    titulo(c.tender_title ?? c.item_principal)
+                    titulo(c.item_principal ?? c.tender_title)
                   )}
                 </td>
                 <td class="max-w-[16rem] truncate py-2.5 pr-4 text-ink-soft" title={nombreOrganismo(c.organismo, c.buyer_id) ?? undefined}>

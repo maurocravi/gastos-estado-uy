@@ -105,6 +105,24 @@ contra la fila que está en la base antes del upsert), así que en el uso normal
 no hace falta. Después conviene `select refresh_dash();` porque `dash_compras`
 usa el título.
 
+## Fichas de ARCE (título y descripción que el feed no da)
+
+`tender.title` y `tender.description` vienen **solo** en los releases de
+llamado, y 2 de cada 3 compras nunca publican uno: aparecen directo como
+adjudicación, y ese release no trae bloque `tender`. La ficha web de ARCE sí
+los muestra siempre, así que los leemos de ahí.
+
+```bash
+npm run scrape                      # todas las pendientes
+npm run scrape -- --limit 3000      # tope de fichas (lo que usa el cron)
+npm run scrape -- --concurrencia 4  # más suave con el servidor de ARCE
+```
+
+Marca `purchases.scraped_at` en cada ficha leída (con o sin datos), así no se
+vuelve a pedir: es incremental y reanudable. El título nunca pisa al del feed.
+Como el título alimenta `dash_compras` (el filtro «tipo» y el buscador),
+después va `npm run normalize` o `select refresh_dash();`.
+
 ## Type-check
 
 ```bash

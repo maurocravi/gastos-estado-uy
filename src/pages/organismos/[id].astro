@@ -176,9 +176,9 @@ const topCompras = compras.slice(0, TOP_COMPRAS);
                   </td>
                   <td
                     class="max-w-[24rem] truncate py-2.5 pr-4"
-                    title={c.tender_title ?? c.item_principal ?? undefined}
+                    title={c.item_principal ?? c.tender_title ?? undefined}
                   >
-                    {titulo(c.tender_title ?? c.item_principal, 70)}
+                    {titulo(c.item_principal ?? c.tender_title, 70)}
                   </td>
                   <td class="py-2.5 pr-4 whitespace-nowrap text-ink-soft">
                     {estadoCompra(c.status)}

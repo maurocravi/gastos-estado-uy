@@ -78,8 +78,9 @@ Plan propuesto:
    arquitectura que el detalle: JS + PostgREST con la publishable key).
    Filtros: texto full-text en español sin tildes (config `es_unaccent`,
    recorre título + todos los ítems adjudicados), organismo, proveedor
-   (autocomplete), tipo de procedimiento (cobertura ~32%, ARCE solo lo
-   informa en los llamados), estado (grupos semánticos), rango de fechas de
+   (autocomplete), tipo de procedimiento (era ~32% —el feed solo lo informa
+   en los llamados—, casi total desde el scrape de fichas del punto 5),
+   estado (grupos semánticos), rango de fechas de
    adjudicación y de montos; orden por monto o fecha, paginado de a 50 con
    total exacto, y filtros en el querystring (URLs compartibles). La vista
    ganó `fecha`, `tipo`, `supplier_ids` y el tsvector `busqueda` (+índices
@@ -118,8 +119,18 @@ Plan propuesto:
    el título y nosotros ignorábamos. Nueva columna `purchases.tender_description`,
    poblada por `transform.ts` y backfilleada desde los releases guardados
    (`npm run backfill-purchases`, lee `archivo/*.ndjson.gz` + `releases.raw`).
-   Cobertura 43.240 de 129.759 compras (33%: solo la traen los llamados, igual
-   que el título). Se muestra bajo el encabezado del detalle.
+   Cobertura vía feed: 43.240 de 129.759 compras (33%: solo la traen los
+   llamados, igual que el título). Se muestra bajo el encabezado del detalle.
+
+   El 67% restante NO es un agujero de la fuente sino del feed: esas compras
+   nunca publican release de llamado (`ocds/release/llamado-{id}` da 404) y el
+   de adjudicación no trae bloque `tender` ninguno. La ficha web de ARCE sí
+   los muestra siempre, en `<p class="buy-object">` (objeto) y `<h2>` (tipo y
+   número). De ahí los completa `npm run scrape` (`src/scripts/scrape-arce.ts`,
+   marca `purchases.scraped_at` para no repedir, incremental y reanudable, en
+   el cron con `--limit 3000`). Efecto colateral valioso: el `tipo` de
+   procedimiento pasa de ~33% a cobertura casi total, que es el filtro del
+   buscador.
 
    De paso se arregló el bug **cross-corrida** que la habría borrado sola: el
    upsert de `purchases` reescribe la fila entera y los releases de

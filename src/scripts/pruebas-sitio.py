@@ -228,13 +228,17 @@ check(
     desc is not None and re.sub(r"\s+", " ", desc).strip() in t,
     f"base={(desc or '')[:60]}…",
 )
-sin_desc = db("purchases", select="id_compra", tender_description="is.null", limit=1)[0]["id_compra"]
-t = texto(render(f"/compras/{sin_desc}"))
-check(
-    f"detalle {sin_desc} (sin descripción): la página igual carga",
-    f"compra {sin_desc} ·" in t,
-    t[:120],
-)
+# El scrape de fichas de ARCE completa las que el feed no trae, así que las que
+# quedan sin descripción son pocas; si no hay ninguna, no hay nada que probar.
+faltantes = db("purchases", select="id_compra", tender_description="is.null", limit=1)
+if faltantes:
+    sin_desc = faltantes[0]["id_compra"]
+    t = texto(render(f"/compras/{sin_desc}"))
+    check(
+        f"detalle {sin_desc} (sin descripción): la página igual carga",
+        f"compra {sin_desc} ·" in t,
+        t[:120],
+    )
 
 # ==============================================================================
 # 3. Consistencia global de vistas (dash_kpis vs conteos y sumas reales)

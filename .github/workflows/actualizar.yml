@@ -40,6 +40,10 @@ jobs:
             npm run ingest -- "$anterior"
           fi
           npm run ingest -- "$mes"
+          # Título y descripción de las compras que el feed OCDS no trae (2 de
+          # cada 3: las que nunca publican llamado). Con tope para que un
+          # atraso no se coma el presupuesto del job; el resto sale mañana.
+          npm run scrape -- --limit 3000 --concurrencia 6
           npm run repair
           npm run rates
           npm run normalize

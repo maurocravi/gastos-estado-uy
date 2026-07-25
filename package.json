@@ -16,6 +16,7 @@
     "repair": "tsx src/scripts/repair-awards.ts",
     "archivar": "tsx src/scripts/archivar-raw.ts",
     "backfill-purchases": "tsx src/scripts/backfill-purchases.ts",
+    "scrape": "tsx src/scripts/scrape-arce.ts",
     "typecheck": "astro check"
   },
   "dependencies": {

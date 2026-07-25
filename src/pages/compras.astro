@@ -331,7 +331,10 @@ const tipos = unwrap<{ tipo: string; compras: number }[]>(
   };
 
   const filaCompra = (c: Row) => {
-    const objeto = c.tender_title ?? c.item_principal;
+    // El ítem adjudicado va primero: el título es "Compra Directa 4451/2026",
+    // metadato del procedimiento (ya está el nº en la columna id y el tipo en
+    // los filtros), y desde el scrape de fichas lo tienen casi todas.
+    const objeto = c.item_principal ?? c.tender_title;
     const organismo = nombreOrganismo(c.organismo, c.buyer_id);
     const link = (inner: string, extra = '') =>
       c.id_compra != null ? `<a href="/compras/${c.id_compra}" class="${extra} hover:underline">${inner}</a>` : inner;
