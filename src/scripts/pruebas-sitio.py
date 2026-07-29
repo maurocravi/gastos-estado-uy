@@ -21,7 +21,7 @@ import urllib.parse
 import urllib.request
 
 # SITIO=http://localhost:4321 para probar un cambio antes de desplegarlo.
-SITIO = os.environ.get("SITIO", "https://gastos-estado-uy.pages.dev")
+SITIO = os.environ.get("SITIO", "https://comprasestadouy.com")
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 # --- credenciales desde .env -------------------------------------------------

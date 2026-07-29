@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# Cáscaras client-side: la URL buildeada no existe para el visitante (los
+# rewrites de _redirects sirven /compras/{id} desde /compras/detalle/) y sin
+# parámetros no muestran nada. Las URLs reales se rastrean por los links.
+Disallow: /compras/detalle
+Disallow: /proveedores/detalle
+Disallow: /precios/detalle
+
+Sitemap: https://comprasestadouy.com/sitemap-index.xml

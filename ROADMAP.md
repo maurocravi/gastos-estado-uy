@@ -29,6 +29,23 @@ Plan propuesto:
       desde PostgREST con la publishable key; `public/_redirects` reescribe
       `/compras/{id}` hacia ella (rewrite 200, la URL no cambia). El build quedó
       en ~6.300 páginas / ~1m15s y escala a toda la historia.
+- [x] Dominio propio (2026-07-29): `comprasestadouy.com`, comprado en
+      Cloudflare Registrar (a precio de costo, ~US$ 10,46/año sin salto de
+      renovación; incluye WHOIS privacy, DNSSEC y email forwarding). El sitio
+      quedó preparado para que se lo pueda encontrar y compartir, que era el
+      agujero real: `site` en `astro.config.mjs`, `<link rel="canonical">` +
+      Open Graph + Twitter Card en `Layout.astro`, imagen `public/og.png`
+      (1200×630, generada con Chrome headless desde un HTML con la tipografía
+      y el motivo de barras del sitio), `public/robots.txt` y sitemap con
+      `@astrojs/sitemap` (294 URLs). Las tres cáscaras client-side
+      (`/compras/detalle`, `/proveedores/detalle`, `/precios/detalle`) quedan
+      FUERA del sitemap y sin `canonical` (pasan `canonical={false}`): la URL
+      que se buildea no existe para el visitante, y un canonical fijo le diría
+      a Google que las 130k compras son la misma página.
+      Apex + `www` enganchados en Pages y DNSSEC activo el mismo día; el
+      default de `SITIO` en `pruebas-sitio.py` ya apunta al dominio nuevo.
+      `gastos-estado-uy.pages.dev` sigue respondiendo (no se puede desactivar):
+      el `canonical` es lo que consolida las dos formas.
 - [x] GitHub Action con cron diario (2026-07-14): `.github/workflows/actualizar.yml`
       corre a las 08:00 UTC (05:00 UY): ingest del mes en curso (y el anterior
       los primeros 3 días del mes), repair + rates + normalize, build y deploy.
@@ -149,6 +166,22 @@ Plan propuesto:
 6. **Evolución temporal, alertas y export**
    Series mensuales por organismo/rubro, alertas de adjudicaciones grandes,
    export CSV. Con 2025+2026 cargados ya hay dos años comparables.
+
+   Revisado el 2026-07-29: conviene partirlo, no hacerlo como bloque.
+   - **Export CSV**: lo próximo a hacer. Es casi gratis (los datos ya están
+     cargados en el navegador en `/compras`, en el detalle de `/precios` y en
+     las fichas: es serializar un array que ya existe), no toca la base y para
+     un sitio de datos abiertos es identidad —es lo que hace que te citen.
+   - **Series mensuales**: barato en espacio (mes × organismo son 5.024 filas,
+     <1 MB; mes × rubro son 126.412 y esa no entra hoy) y sin dependencia nueva
+     (el histograma de `/precios` ya es CSS puro). El problema es de datos: hay
+     **57 meses** distintos con `award_date`, porque 2021-2024 están poblados
+     solo por fragmentos (ajustes de adjudicaciones viejas publicados en
+     releases nuevos). Un gráfico crudo sugeriría una cobertura que no tenemos:
+     hay que recortar a >= 2025-01 y declararlo, como ya se hace con los
+     outliers y con el subtítulo de la portada.
+   - **Alertas**: esperar. Necesitan un canal de entrega (mail, RSS) y alguien
+     suscripto; sin audiencia es infraestructura para cero usuarios.
 
 7. **Flag de outliers de la fuente** ✔ (2026-07-23)
    Tabla curada `outliers` (`id_compra`, `tipo`, `nota`; RLS de lectura
