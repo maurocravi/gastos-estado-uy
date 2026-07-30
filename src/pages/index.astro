@@ -66,9 +66,32 @@ const maxOrganismo = Math.max(...organismos.map((o) => o.total_uyu));
 // legítimas (procesos de 2023-24 publicados tarde) y typos de la fuente
 // (una resolución "30/04/2005" que es 2025 — ver ROADMAP, outliers).
 const periodo = `datos publicados desde enero 2025 · última adjudicación ${fecha(kpis.hasta)}`;
+
+// Structured data de la home: describe el conjunto de datos para Google
+// Dataset Search. `..` es el intervalo ISO 8601 abierto (la ingesta sigue);
+// no uso `kpis.hasta` porque la fuente trae fechas de adjudicación con typos.
+const dataset = {
+  '@type': 'Dataset',
+  name: 'Compras y adjudicaciones del Estado uruguayo',
+  description:
+    'Compras, llamados y adjudicaciones de los organismos del Estado uruguayo, con montos normalizados a pesos y dólares. Derivado de las publicaciones OCDS de ARCE.',
+  url: 'https://comprasestadouy.com/',
+  inLanguage: 'es-UY',
+  isAccessibleForFree: true,
+  keywords: ['compras públicas', 'contrataciones', 'Uruguay', 'datos abiertos', 'OCDS', 'ARCE'],
+  spatialCoverage: { '@type': 'Place', name: 'Uruguay' },
+  temporalCoverage: '2025-01-01/..',
+  creator: {
+    '@type': 'GovernmentOrganization',
+    name: 'Agencia Reguladora de Compras Estatales (ARCE)',
+    url: 'https://www.comprasestatales.gub.uy/',
+  },
+  publisher: { '@id': 'https://comprasestadouy.com/#publisher' },
+  isBasedOn: 'https://www.comprasestatales.gub.uy/',
+};
 ---
 
-<Layout>
+<Layout jsonLd={dataset}>
   <div class="col-span-12">
     <h1 class="text-xl font-semibold tracking-tight">Resumen</h1>
     <p class="mt-1 text-sm text-ink-soft">{periodo}</p>

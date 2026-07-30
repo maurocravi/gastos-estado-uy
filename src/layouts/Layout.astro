@@ -19,9 +19,11 @@ interface Props {
    * URL que rastreó, que es la correcta.
    */
   canonical?: false;
+  /** Structured data extra de la página, que se suma al `WebSite` del sitio. */
+  jsonLd?: Record<string, unknown>;
 }
 
-const { title, description, canonical } = Astro.props;
+const { title, description, canonical, jsonLd } = Astro.props;
 const pageTitle = title ? `${title} · Compras del Estado` : 'Compras del Estado · Uruguay';
 const pageDescription =
   description ??
@@ -33,6 +35,30 @@ const pageDescription =
 const ruta = Astro.url.pathname.endsWith('/') ? Astro.url.pathname : `${Astro.url.pathname}/`;
 const canonicalUrl = canonical === false ? undefined : new URL(ruta, Astro.site).href;
 const ogImage = new URL('/og.png', Astro.site).href;
+const ogImageAlt =
+  'Compras del Estado · Qué compra el Estado uruguayo, a quién y a qué precio. Datos abiertos, fuente ARCE / OCDS.';
+
+// Structured data. `WebSite` describe al sitio y va en todas las páginas; las
+// páginas que aportan algo más (la home describe el dataset) lo suman por prop.
+const sitio = {
+  '@type': 'WebSite',
+  '@id': `${Astro.site}#website`,
+  url: Astro.site!.href,
+  name: 'Compras del Estado',
+  description: pageDescription,
+  inLanguage: 'es-UY',
+  publisher: { '@id': `${Astro.site}#publisher` },
+};
+const editor = {
+  '@type': 'Organization',
+  '@id': `${Astro.site}#publisher`,
+  name: 'Compras del Estado',
+  url: Astro.site!.href,
+  // Proyecto independiente: los datos son del Estado, el sitio no.
+  description:
+    'Proyecto independiente que publica los datos abiertos de compras del Estado uruguayo en formato consultable.',
+};
+const grafo = [sitio, editor, ...(jsonLd ? [jsonLd] : [])];
 
 const nav = [
   { href: '/', label: 'Resumen' },
@@ -52,7 +78,11 @@ const path = Astro.url.pathname.replace(/\/$/, '') || '/';
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- Safari no soporta favicons SVG: cae al PNG. -->
     <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
+    <!-- Los navegadores y crawlers piden /favicon.ico aunque no esté declarado:
+         sin el archivo es un 404 en cada visita. -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#1e40af" />
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={pageDescription} />
     {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
@@ -67,11 +97,15 @@ const path = Astro.url.pathname.replace(/\/$/, '') || '/';
     <meta property="og:image" content={ogImage} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={ogImageAlt} />
     {canonicalUrl && <meta property="og:url" content={canonicalUrl} />}
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={pageTitle} />
     <meta name="twitter:description" content={pageDescription} />
     <meta name="twitter:image" content={ogImage} />
+    <meta name="twitter:image:alt" content={ogImageAlt} />
+
+    <script type="application/ld+json" set:html={JSON.stringify({ '@context': 'https://schema.org', '@graph': grafo })} is:inline />
   </head>
   <body class="min-h-screen bg-canvas font-sans text-ink antialiased">
     <!-- Barra superior fina -->
