@@ -92,10 +92,25 @@ const dataset = {
 ---
 
 <Layout jsonLd={dataset}>
-  <div class="col-span-12">
-    <h1 class="text-xl font-semibold tracking-tight">Resumen</h1>
-    <p class="mt-1 text-sm text-ink-soft">{periodo}</p>
-  </div>
+  <!-- Presentación: quien llega por primera vez tiene que entender de qué va
+       el sitio antes de toparse con los números. -->
+  <header class="col-span-12 max-w-3xl">
+    <h1 class="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+      Qué compra el Estado uruguayo, a quién y a qué precio
+    </h1>
+    <p class="py-5 text-base leading-relaxed text-ink-soft">
+      El Estado publica cada compra que hace, pero repartida en miles de expedientes sueltos. Acá
+      están todas juntas y consultables: {int(kpis.compras)} compras de {int(kpis.organismos)} organismos
+      a {int(kpis.proveedores)} proveedores, con los montos llevados a pesos y dólares para que se
+      puedan comparar entre sí.
+    </p>
+    <p class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-faint">
+      <span>{periodo}</span>
+      <a href="/acerca" class="font-medium text-primary hover:underline">
+        Cómo se arman estos datos →
+      </a>
+    </p>
+  </header>
 
   <!-- KPIs -->
   <Kpi label="Adjudicado" value={uyuM(kpis.total_uyu)} sub="pesos uruguayos, montos normalizados" />

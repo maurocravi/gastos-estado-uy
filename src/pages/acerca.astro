@@ -1,0 +1,198 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { supabase, unwrap } from '../lib/supabase.js';
+import { int, uyuM, fecha } from '../lib/format.js';
+
+interface Kpis {
+  compras: number;
+  adjudicaciones: number;
+  organismos: number;
+  proveedores: number;
+  total_uyu: number | null;
+  hasta: string | null;
+  outliers_excluidos: number;
+}
+
+const kpis = unwrap<Kpis>(
+  await supabase.from('dash_kpis').select('*').single(),
+  'dash_kpis',
+);
+
+// Structured data: esta página es la que describe al proyecto, así que le
+// cuelga la ficha del editor que `Layout` ya declara en el grafo.
+const about = {
+  '@type': 'AboutPage',
+  name: 'Acerca y metodología',
+  url: 'https://comprasestadouy.com/acerca/',
+  inLanguage: 'es-UY',
+  about: { '@id': 'https://comprasestadouy.com/#publisher' },
+};
+---
+
+<Layout
+  title="Acerca y metodología"
+  description="Qué es Compras del Estado, de dónde salen los datos (ARCE / OCDS), cómo se normalizan los montos y qué límites tienen las cifras."
+  jsonLd={about}
+>
+  <div class="col-span-12 max-w-3xl">
+    <header>
+      <h1 class="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+        Acerca y metodología
+      </h1>
+      <p class="mt-3 text-base leading-relaxed text-ink-soft">
+        Qué es este sitio, de dónde salen los datos, qué se les hace antes de mostrarlos y qué
+        límites tienen las cifras.
+      </p>
+    </header>
+
+    <section class="mt-10">
+      <h2 class="text-sm font-semibold tracking-wide text-ink uppercase">Qué es esto</h2>
+      <p class="mt-3 text-sm leading-relaxed text-ink-soft">
+        Un sitio para mirar en qué gasta el Estado uruguayo. El Estado ya publica cada compra que
+        hace, pero repartida en miles de expedientes que se consultan de a uno: sirve para revisar
+        un llamado puntual, no para ver el conjunto. Acá esos mismos datos están juntos y
+        ordenados, para poder preguntar quién compra, a quién y a qué precio.
+      </p>
+      <p class="mt-3 text-sm leading-relaxed text-ink-soft">
+        Hoy hay {int(kpis.compras)} compras con {int(kpis.adjudicaciones)} adjudicaciones,
+        {int(kpis.organismos)} organismos compradores y {int(kpis.proveedores)} proveedores, por
+        {uyuM(kpis.total_uyu)} adjudicados.
+      </p>
+      <p class="mt-3 text-sm leading-relaxed text-ink-soft">
+        Es un proyecto independiente, hecho por una persona. No tiene relación con ARCE ni con
+        ningún organismo del Estado, y no recibe financiamiento de nadie.
+      </p>
+    </section>
+
+    <section class="mt-10">
+      <h2 class="text-sm font-semibold tracking-wide text-ink uppercase">De dónde salen los datos</h2>
+      <p class="mt-3 text-sm leading-relaxed text-ink-soft">
+        De una sola fuente: el feed de datos abiertos que publica la
+        <a
+          href="https://www.comprasestatales.gub.uy/"
+          class="text-primary hover:underline"
+          rel="external"> Agencia Reguladora de Compras Estatales (ARCE)</a
+        > en formato <abbr title="Open Contracting Data Standard" class="no-underline">OCDS</abbr>,
+        el estándar internacional para publicar contrataciones públicas. De ahí sale todo: los
+        llamados, las adjudicaciones, los proveedores, los ítems con su cantidad, precio unitario y
+        moneda.
+      </p>
+      <p class="mt-3 text-sm leading-relaxed text-ink-soft">
+        No se carga nada a mano ni se completa ningún dato faltante. Cada compra de este sitio tiene
+        un enlace a su ficha oficial en comprasestatales.gub.uy para poder contrastarla.
+      </p>
+      <p class="mt-3 text-sm leading-relaxed text-ink-soft">
+        La cobertura arranca en enero de 2025: están los procesos <em>publicados</em> desde esa
+        fecha. La distinción importa, porque hay procesos viejos que ARCE publica tarde: por eso
+        vas a encontrar adjudicaciones con fechas anteriores a 2025.
+      </p>
+    </section>
+
+    <section class="mt-10">
+      <h2 class="text-sm font-semibold tracking-wide text-ink uppercase">Qué se les hace</h2>
+      <ul class="mt-3 flex flex-col gap-4">
+        <li class="text-sm leading-relaxed text-ink-soft">
+          <strong class="font-medium text-ink">Montos llevados a una misma moneda.</strong> Cada
+          ítem viene en la moneda en que se adjudicó: pesos, dólares, unidades indexadas, euros. Se
+          convierte todo a pesos con la cotización del Banco Central del día de la adjudicación
+          (promedio entre comprador y vendedor), o la del día hábil anterior si cayó fin de semana o
+          feriado. El total en dólares se deriva del total en pesos con la cotización de esa misma
+          fecha. Así una compra en dólares y una en pesos pueden sumarse en la misma columna.
+        </li>
+        <li class="text-sm leading-relaxed text-ink-soft">
+          <strong class="font-medium text-ink">Nombres de organismos desambiguados.</strong> Ocho
+          ministerios le llaman «Dirección General de Secretaría» a una de sus unidades ejecutoras y
+          el feed no dice de qué inciso es cada una. Se les agrega la sigla del ministerio para
+          poder distinguirlas.
+        </li>
+        <li class="text-sm leading-relaxed text-ink-soft">
+          <strong class="font-medium text-ink">Agregados por organismo, proveedor y producto. </strong>
+          Los rankings y el comparador de precios se calculan sumando los ítems adjudicados, no
+          estimando nada.
+        </li>
+      </ul>
+    </section>
+
+    <section class="mt-10">
+      <h2 class="text-sm font-semibold tracking-wide text-ink uppercase">Cómo leer las cifras</h2>
+      <ul class="mt-3 flex flex-col gap-3">
+        <li class="text-sm leading-relaxed text-ink-soft">
+          <strong class="font-medium text-ink">Es lo adjudicado, no lo pagado.</strong> Un monto
+          adjudicado es lo que el organismo resolvió contratar. Lo que termina pagándose puede
+          diferir: ampliaciones, entregas parciales, rescisiones, ajustes de precio.
+        </li>
+        <li class="text-sm leading-relaxed text-ink-soft">
+          <strong class="font-medium text-ink">Una compra puede tener varias adjudicaciones. </strong>
+          Un mismo llamado suele repartirse entre varios proveedores, uno por renglón. Por eso hay
+          más adjudicaciones que compras.
+        </li>
+        <li class="text-sm leading-relaxed text-ink-soft">
+          <strong class="font-medium text-ink">Los montos son nominales.</strong> No hay ajuste por
+          inflación: comparar un total de 2025 con uno de 2026 compara pesos de distinto poder de
+          compra.
+        </li>
+        <li class="text-sm leading-relaxed text-ink-soft">
+          <strong class="font-medium text-ink">Los datos cambian.</strong> ARCE corrige y completa
+          publicaciones; una compra puede cambiar de monto o de estado después de haber aparecido
+          acá. El sitio refleja la última versión que tomó de la fuente
+          {kpis.hasta && <> (última adjudicación registrada: {fecha(kpis.hasta)})</>}.
+        </li>
+      </ul>
+    </section>
+
+    <section class="mt-10">
+      <h2 class="text-sm font-semibold tracking-wide text-ink uppercase">
+        Anomalías de la fuente
+      </h2>
+      <p class="mt-3 text-sm leading-relaxed text-ink-soft">
+        Algunas compras vienen con datos que no representan la realidad: casi siempre errores de
+        carga del organismo, como una cantidad anotada en el campo equivocado. Sin tratarlos,
+        una sola de esas compras distorsiona todos los rankings.
+      </p>
+      <p class="mt-3 text-sm leading-relaxed text-ink-soft">
+        El criterio es no tocar el dato nunca. Cada caso se revisa a mano contra la ficha oficial y
+        se marca con una advertencia
+        <span class="text-flag-warn"> ⚠</span>, pero se muestra tal cual lo publica ARCE, y la compra
+        nunca se oculta. Las que tienen un monto claramente inflado
+        {kpis.outliers_excluidos > 0 && <>({int(kpis.outliers_excluidos)} hasta ahora)</>} quedan
+        además fuera de los totales y los rankings, para que un error de tipeo no defina quién es el
+        organismo que más gastó.
+      </p>
+    </section>
+
+    <section class="mt-10">
+      <h2 class="text-sm font-semibold tracking-wide text-ink uppercase">Qué no vas a encontrar</h2>
+      <ul class="mt-3 flex flex-col gap-3">
+        <li class="text-sm leading-relaxed text-ink-soft">
+          <strong class="font-medium text-ink">Compras anteriores a 2025.</strong> El feed tiene más
+          historia; ingerirla es cuestión de espacio en la base y está pendiente.
+        </li>
+        <li class="text-sm leading-relaxed text-ink-soft">
+          <strong class="font-medium text-ink">Lo que la fuente no publica.</strong> Si un proceso no
+          se carga en el sistema de compras estatales, acá tampoco está. Este sitio no puede mostrar
+          más de lo que el Estado publica.
+        </li>
+        <li class="text-sm leading-relaxed text-ink-soft">
+          <strong class="font-medium text-ink">Ejecución presupuestal y pagos.</strong> Son otros
+          sistemas, con otros datos.
+        </li>
+      </ul>
+    </section>
+
+    <section class="mt-10">
+      <h2 class="text-sm font-semibold tracking-wide text-ink uppercase">Cada cuánto se actualiza</h2>
+      <p class="mt-3 text-sm leading-relaxed text-ink-soft">
+        Todos los días. A las 5 de la mañana (hora de Uruguay) un proceso automático descarga lo
+        nuevo del mes en curso, recalcula cotizaciones y totales y vuelve a publicar el sitio. Los
+        primeros días de cada mes también reprocesa el mes anterior, porque ARCE sigue completando
+        publicaciones después de que el mes cerró.
+      </p>
+    </section>
+
+
+
+    <nav class="mt-12 border-t border-line pt-6">
+      <a href="/" class="text-sm font-medium text-primary hover:underline">← Volver al resumen</a>
+    </nav>
+  </div>
+</Layout>

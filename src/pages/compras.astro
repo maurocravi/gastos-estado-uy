@@ -392,7 +392,10 @@ const tipos = unwrap<{ tipo: string; compras: number }[]>(
   // ── Búsqueda ───────────────────────────────────────────────────────────
   let abortar: AbortController | undefined;
 
-  async function buscar(f: Filtros) {
+  // `irAResultados`: después de buscar o paginar conviene llevar la vista a la
+  // tabla, pero en la primera carga no: dejaba la página abierta con el título
+  // y los filtros fuera de pantalla (en mobile, 1000px más arriba).
+  async function buscar(f: Filtros, irAResultados = true) {
     abortar?.abort();
     abortar = new AbortController();
     const { signal } = abortar;
@@ -415,7 +418,7 @@ const tipos = unwrap<{ tipo: string; compras: number }[]>(
       // Content-Range: "0-49/1234" → total tras la barra.
       const total = Number(res.headers.get('content-range')?.split('/')[1] ?? rows.length);
       render(rows, total, f);
-      cont.scrollIntoView({ block: 'nearest' });
+      if (irAResultados) cont.scrollIntoView({ block: 'nearest' });
     } catch (e) {
       if (signal.aborted) return;
       mensaje(`No pudimos buscar (${e instanceof Error ? e.message : e}). Probá de nuevo.`);
@@ -474,7 +477,7 @@ const tipos = unwrap<{ tipo: string; compras: number }[]>(
       provIds.set(nombre, provId);
       f.prov = nombre;
     }
-    buscar(f);
+    buscar(f, false);
   }
 
   iniciar();

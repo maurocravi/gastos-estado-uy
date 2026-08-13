@@ -35,6 +35,15 @@
   --color-flag-warn: #b45309;
 }
 
+/* Tiras que scrollean en horizontal (la nav de mobile): la barra de scroll
+   sobre 40px de alto se come el elemento y no aporta nada. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* Los números de datos siempre tabulares, alineados y prolijos. */
 @utility num {
   font-family: var(--font-mono);

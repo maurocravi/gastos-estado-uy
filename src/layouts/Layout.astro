@@ -68,6 +68,15 @@ const nav = [
   { href: '/precios', label: 'Precios' },
 ];
 const path = Astro.url.pathname.replace(/\/$/, '') || '/';
+
+// Mismo pill en el sidebar y en la tira horizontal de mobile: una sola
+// definición para que no se desincronicen.
+const pill = (activo: boolean) => [
+  'rounded-md px-3 py-1.5 text-sm',
+  activo
+    ? 'bg-primary-tint font-medium text-primary'
+    : 'text-ink-soft hover:bg-primary-tint/50 hover:text-ink',
+];
 ---
 
 <!doctype html>
@@ -119,6 +128,38 @@ const path = Astro.url.pathname.replace(/\/$/, '') || '/';
         </a>
         <span class="ml-auto text-xs text-ink-faint">fuente: ARCE / OCDS</span>
       </div>
+
+      <!-- Navegación de mobile: abajo de `md` no hay sidebar, así que el sitio
+           quedaba sin ninguna forma de moverse entre secciones. Los cinco ítems
+           no entran en un teléfono (piden 477px), así que la tira scrollea; el
+           degradé de la derecha es lo que avisa que hay más. -->
+      <div class="relative border-t border-line md:hidden">
+        <nav aria-label="Secciones" class="no-scrollbar flex gap-1 overflow-x-auto px-3 py-1.5">
+          {
+            nav.map((item) => (
+              <a
+                href={item.href}
+                aria-current={path === item.href ? 'page' : undefined}
+                class:list={[...pill(path === item.href), 'shrink-0 whitespace-nowrap']}
+              >
+                {item.label}
+              </a>
+            ))
+          }
+        </nav>
+        <div
+          aria-hidden="true"
+          class="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-surface to-transparent"
+        >
+        </div>
+      </div>
+      <!-- Si la sección actual quedó fuera de la parte visible de la tira (pasa
+           en Precios, el último ítem), el usuario no ve dónde está parado. -->
+      <script is:inline>
+        document
+          .querySelector('nav[aria-label="Secciones"] [aria-current]')
+          ?.scrollIntoView({ inline: 'center', block: 'nearest' });
+      </script>
     </header>
 
     <div class="flex">
@@ -126,23 +167,15 @@ const path = Astro.url.pathname.replace(/\/$/, '') || '/';
       <aside class="sticky top-12 hidden h-[calc(100vh-3rem)] w-48 shrink-0 border-r border-line px-3 py-6 md:block">
         <nav class="flex flex-col gap-1">
           {
-            nav.map((item) => {
-              const active = path === item.href;
-              return (
-                <a
-                  href={item.href}
-                  aria-current={active ? 'page' : undefined}
-                  class:list={[
-                    'rounded-md px-3 py-1.5 text-sm',
-                    active
-                      ? 'bg-primary-tint font-medium text-primary'
-                      : 'text-ink-soft hover:bg-primary-tint/50 hover:text-ink',
-                  ]}
-                >
-                  {item.label}
-                </a>
-              );
-            })
+            nav.map((item) => (
+              <a
+                href={item.href}
+                aria-current={path === item.href ? 'page' : undefined}
+                class:list={pill(path === item.href)}
+              >
+                {item.label}
+              </a>
+            ))
           }
         </nav>
       </aside>
@@ -152,6 +185,27 @@ const path = Astro.url.pathname.replace(/\/$/, '') || '/';
         <div class="mx-auto grid max-w-[1280px] grid-cols-12 gap-6 px-5 py-10 lg:px-10">
           <slot />
         </div>
+
+        <!-- Pie: el contexto mínimo (qué es esto, de dónde salen los datos)
+             tiene que estar también en las páginas profundas, donde cae el que
+             llega desde un buscador. -->
+        <footer class="border-t border-line">
+          <div
+            class="mx-auto flex max-w-[1280px] flex-col gap-3 px-5 py-8 text-xs text-ink-faint sm:flex-row sm:items-start sm:gap-8 lg:px-10"
+          >
+            <p class="max-w-xl leading-relaxed">
+              Proyecto independiente, sin relación con el Estado. Los datos son los que publica
+              <a
+                href="https://www.comprasestatales.gub.uy/"
+                class="text-ink-soft hover:underline"
+                rel="external"> ARCE</a
+              > en formato abierto OCDS, y se actualizan todos los días.
+            </p>
+            <nav class="flex flex-wrap gap-x-5 gap-y-2 sm:ml-auto sm:justify-end">
+              <a href="/acerca" class="text-primary hover:underline">Acerca y metodología</a>
+            </nav>
+          </div>
+        </footer>
       </main>
     </div>
   </body>

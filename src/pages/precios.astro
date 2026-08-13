@@ -200,7 +200,10 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
   // ── Búsqueda ───────────────────────────────────────────────────────────
   let abortar: AbortController | undefined;
 
-  async function buscar(f: Filtros) {
+  // `irAResultados`: después de buscar o paginar conviene llevar la vista a la
+  // tabla, pero en la primera carga no: dejaba la página abierta con el título
+  // y el buscador fuera de pantalla.
+  async function buscar(f: Filtros, irAResultados = true) {
     abortar?.abort();
     abortar = new AbortController();
     const { signal } = abortar;
@@ -211,7 +214,7 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
       const rows = (await res.json()) as Row[];
       const total = Number(res.headers.get('content-range')?.split('/')[1] ?? rows.length);
       render(rows, total, f);
-      cont.scrollIntoView({ block: 'nearest' });
+      if (irAResultados) cont.scrollIntoView({ block: 'nearest' });
     } catch (e) {
       if (signal.aborted) return;
       mensaje(`No pudimos buscar (${e instanceof Error ? e.message : e}). Probá de nuevo.`);
@@ -234,7 +237,7 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
     const u = new URLSearchParams(location.search);
     setVal('q', u.get('q') ?? '');
     setVal('orden', u.get('orden') ?? 'comprado');
-    buscar(leerFormulario(Math.max(1, Number(u.get('p') ?? 1) || 1)));
+    buscar(leerFormulario(Math.max(1, Number(u.get('p') ?? 1) || 1)), false);
   }
 
   iniciar();
