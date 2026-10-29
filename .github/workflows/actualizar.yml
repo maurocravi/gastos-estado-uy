@@ -17,7 +17,18 @@ jobs:
   actualizar:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: write
     steps:
+      # GitHub apaga los cron tras 60 días sin actividad en el repo (los runs
+      # no cuentan; pasó el 2026-10-14). Re-habilitar el propio workflow por
+      # la API reinicia ese contador sin ensuciar el historial con commits.
+      - name: Mantener activo el cron
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/actualizar.yml/enable"
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
