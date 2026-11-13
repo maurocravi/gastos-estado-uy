@@ -3,8 +3,9 @@ import Layout from '../layouts/Layout.astro';
 
 // Astro la emite como dist/404.html y Cloudflare Pages la sirve con status
 // 404 para toda ruta inexistente (sin ella, Pages devolvía index.html con
-// 200 como fallback SPA). Las URLs /compras/{id} y /proveedores/{slug} no
-// pasan por acá: las captura antes el rewrite de public/_redirects.
+// 200 como fallback SPA). Las URLs /compras/{id} no pasan por acá: las
+// captura antes el rewrite de public/_redirects. La Function de
+// /proveedores/{slug} sí la sirve (con 404) cuando el proveedor no existe.
 ---
 
 <Layout title="Página no encontrada">
