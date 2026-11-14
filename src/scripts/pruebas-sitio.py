@@ -225,8 +225,10 @@ check("detalle inexistente: mensaje 'no encontramos'", "No encontramos" in t)
 
 def http_crudo(path):
     """(status, html) sin ejecutar JS: lo que ve un crawler que no renderiza."""
+    # User-Agent propio: Cloudflare bloquea (403) el «Python-urllib» por defecto.
+    req = urllib.request.Request(f"{SITIO}{path}", headers={"User-Agent": "pruebas-sitio/1.0"})
     try:
-        with urllib.request.urlopen(f"{SITIO}{path}", timeout=30) as r:
+        with urllib.request.urlopen(req, timeout=30) as r:
             return r.status, r.read().decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
         return e.code, e.read().decode("utf-8", "replace")
