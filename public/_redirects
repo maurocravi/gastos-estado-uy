@@ -2,9 +2,9 @@
 # client-side (rewrite 200, la URL no cambia); el id se lee del path en el
 # cliente. Los listados /compras y /proveedores no matchean (la regla exige un
 # segmento más, no vacío).
-# /proveedores/{slug} lo atiende antes la Pages Function
-# functions/proveedores/[id].ts (ficha armada en el servidor); la regla queda
-# como fallback por si la Function no está desplegada.
+# /compras/{id} y /proveedores/{slug} los atienden antes las Pages Functions
+# de functions/ (ficha armada en el servidor); estas reglas quedan como
+# fallback por si las Functions no están desplegadas.
 /compras/:id /compras/detalle/ 200
 /proveedores/:id /proveedores/detalle/ 200
 /precios/:id /precios/detalle/ 200

@@ -17,6 +17,7 @@ import re
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -215,9 +216,39 @@ check(
     t[t.find("ADJUDICADO") : t.find("ADJUDICADO") + 60] if "ADJUDICADO" in t else t[:100],
 )
 
-# compra inexistente e id inválido
+# compra inexistente: en producción la Function devuelve la página 404 con
+# status 404 (en dev, sin Functions, el cliente muestra «No encontramos la
+# compra»); los dos textos empiezan igual.
 t = texto(render("/compras/99999999"))
-check("detalle inexistente: mensaje 'no encontramos'", "No encontramos la compra" in t)
+check("detalle inexistente: mensaje 'no encontramos'", "No encontramos" in t)
+
+
+def http_crudo(path):
+    """(status, html) sin ejecutar JS: lo que ve un crawler que no renderiza."""
+    try:
+        with urllib.request.urlopen(f"{SITIO}{path}", timeout=30) as r:
+            return r.status, r.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode("utf-8", "replace")
+
+
+# Fichas armadas en el servidor (Pages Functions): el HTML crudo ya trae el
+# contenido, el canonical y un <title> propio; las inexistentes dan 404.
+if not SITIO.startswith("http://localhost:4321"):
+    for path, contenedor in (("/compras/1325850", "detalle"), ("/proveedores/R210231300018", "ficha")):
+        st, h = http_crudo(path)
+        check(
+            f"{path}: HTML del servidor con la ficha armada",
+            st == 200
+            and f'id="{contenedor}"' in h
+            and 'data-ssr="1"' in h
+            and f'rel="canonical" href="https://comprasestadouy.com{path}"' in h
+            and "<h1" in h,
+            f"status={st}",
+        )
+    for path in ("/compras/99999999", "/proveedores/R000000000000"):
+        st, _ = http_crudo(path)
+        check(f"{path}: status 404", st == 404, f"status={st}")
 
 # descripción del llamado (tender.description): solo la traen los llamados, así
 # que la mostramos cuando está y la página no debe romperse cuando falta.

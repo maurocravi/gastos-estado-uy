@@ -62,7 +62,7 @@ const supabaseKey = import.meta.env.SUPABASE_PUBLISHABLE_KEY as string;
         );
         return;
       }
-      document.title = `${ficha.entidad.name} · Compras del Estado`;
+      document.title = ficha.titulo;
       cont.innerHTML = ficha.html;
     } catch (e) {
       cont.innerHTML = mensajeHtml(

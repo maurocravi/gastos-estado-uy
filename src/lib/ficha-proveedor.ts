@@ -11,6 +11,7 @@ import { int, uyu, uyuM, pct, fecha, titulo } from './format.js';
 import { slugEntidad } from './slug.js';
 import { nombreOrganismo } from './incisos.js';
 import { etiquetaOutlier } from './outliers.js';
+import { card, esc, kpi, mensajeHtml as mensajeBase, recortarDescripcion, type FichaArmada } from './ficha-html.js';
 
 interface Adjudicacion {
   ocid: string;
@@ -45,12 +46,8 @@ export interface Entidad {
   name: string;
 }
 
-export interface Ficha {
+export interface Ficha extends FichaArmada {
   entidad: Entidad;
-  /** Contenido de #ficha. */
-  html: string;
-  /** Para <meta name="description"> y Open Graph. */
-  descripcion: string;
 }
 
 export interface Conexion {
@@ -61,8 +58,6 @@ export interface Conexion {
 const TOP_CLIENTES = 15;
 const TOP_COMPRAS = 50;
 const PAGINA = 1000; // tope de filas top-level de PostgREST
-
-export const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 /** Segmento de URL válido para un proveedor (o null). */
 export function slugValido(slug: string | null | undefined): string | null {
@@ -121,33 +116,11 @@ async function adjudicacionesDe(cx: Conexion, supplierId: string): Promise<Adjud
 
 const enLista = (valores: string[]) => `in.(${valores.map((v) => `"${v}"`).join(',')})`;
 
-const kpi = (label: string, value: string, sub: string) => `
-  <div class="rounded-lg border border-line bg-surface px-6 py-5 col-span-12 sm:col-span-4">
-    <p class="text-xs font-medium tracking-wide text-ink-soft uppercase">${esc(label)}</p>
-    <p class="num mt-2 text-2xl font-medium text-ink">${esc(value)}</p>
-    <p class="mt-1 text-xs text-ink-faint">${esc(sub)}</p>
-  </div>`;
-
-const card = (title: string, sub: string, cuerpo: string) => `
-  <section class="rounded-lg border border-line bg-surface p-6 col-span-12">
-    <header class="mb-5">
-      <h2 class="text-sm font-semibold text-ink">${esc(title)}</h2>
-      <p class="mt-0.5 text-xs text-ink-faint">${esc(sub)}</p>
-    </header>
-    ${cuerpo}
-  </section>`;
-
 const volver =
   '<a href="/proveedores" class="text-sm font-medium text-primary hover:underline">← Proveedores</a>';
 
 /** Contenido de #ficha para un estado sin datos (cargando, error, no encontrado). */
-export function mensajeHtml(texto: string): string {
-  return `
-  <div class="col-span-12">
-    ${volver}
-    <p class="mt-2 text-sm text-ink-soft">${esc(texto)}</p>
-  </div>`;
-}
+export const mensajeHtml = (texto: string) => mensajeBase(volver, texto);
 
 function render(
   entidad: Entidad,
@@ -282,7 +255,12 @@ function render(
       `Principal cliente: ${organismo(clientes[0].id)}.`
     : `${entidad.name} (${entidad.id}): proveedor del Estado uruguayo, sin adjudicaciones registradas en el feed OCDS de ARCE.`;
 
-  return { entidad, html, descripcion };
+  return {
+    entidad,
+    html,
+    titulo: `${entidad.name} · Compras del Estado`,
+    descripcion: recortarDescripcion(descripcion),
+  };
 }
 
 /** Ficha completa del proveedor, o null si el slug no corresponde a ninguno. Tira si falla la API. */
