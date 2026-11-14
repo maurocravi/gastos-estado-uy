@@ -8,14 +8,20 @@ import sitemap from '@astrojs/sitemap';
 // (el detalle de compra, la ficha de proveedor y el detalle de precios son
 // una sola página que lee el id de la URL) NO van al sitemap: la URL que se
 // buildea (`/compras/detalle/`) no existe para el visitante y sin parámetros
-// no muestra nada. Las URLs reales son 130k y se rastrean por los links.
+// no muestra nada. Las fichas de proveedor van en su propio sitemap
+// (src/pages/sitemap-proveedores.xml.ts), sumado al índice acá abajo.
 const CASCARAS = /\/(compras|proveedores|precios)\/detalle\/?$/;
 
 // https://astro.build/config
 export default defineConfig({
   // Necesario para el canonical, el Open Graph y el sitemap.
   site: 'https://comprasestadouy.com',
-  integrations: [sitemap({ filter: (page) => !CASCARAS.test(page) })],
+  integrations: [
+    sitemap({
+      filter: (page) => !CASCARAS.test(page),
+      customSitemaps: ['https://comprasestadouy.com/sitemap-proveedores.xml'],
+    }),
+  ],
   vite: {
     plugins: [tailwindcss()]
   }
