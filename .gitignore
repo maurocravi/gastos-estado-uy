@@ -25,3 +25,6 @@ pnpm-debug.log*
 
 # wrangler pages dev (estado local de Functions)
 .wrangler/
+
+# notas internas del proyecto (no se publican)
+ROADMAP.md
